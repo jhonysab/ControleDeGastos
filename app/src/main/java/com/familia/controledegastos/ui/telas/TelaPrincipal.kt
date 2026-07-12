@@ -3,6 +3,8 @@ package com.familia.controledegastos.ui.telas
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -29,6 +31,8 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DrawerValue
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
@@ -68,6 +72,7 @@ import com.familia.controledegastos.model.TipoTransacao
 import com.familia.controledegastos.model.Transacao
 import com.familia.controledegastos.model.Usuario
 import com.familia.controledegastos.model.formatarCentavos
+import com.familia.controledegastos.ui.OrdenacaoLista
 import com.familia.controledegastos.ui.TransacoesViewModel
 import com.familia.controledegastos.ui.theme.VerdeGanho
 import com.familia.controledegastos.ui.theme.VermelhoGasto
@@ -411,10 +416,23 @@ fun TelaPrincipal(
                     )
                 }
             } else {
+                ControlesLista(vm)
+                val exibidas = vm.transacoesExibidas
+                if (exibidas.isEmpty()) {
+                    Box(modifier = Modifier
+                        .fillMaxSize()
+                        .padding(24.dp), contentAlignment = Alignment.Center) {
+                        Text(
+                            text = "Nenhum lançamento com esses filtros.",
+                            fontSize = 16.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                } else {
                 val nomes = vm.membros.associate { it.id to it.nome }
                 val nomesCartoes = vm.cartoes.associate { it.id to it.nome }
                 LazyColumn(modifier = Modifier.fillMaxSize()) {
-                    items(vm.transacoesDoMes, key = { it.id }) { transacao ->
+                    items(exibidas, key = { it.id }) { transacao ->
                         ItemTransacao(
                             transacao = transacao,
                             // só faz sentido dizer quem lançou vendo "Todos"
@@ -432,6 +450,7 @@ fun TelaPrincipal(
                         )
                         HorizontalDivider(thickness = 0.5.dp)
                     }
+                }
                 }
             }
             } // fim da aba Resumo
@@ -526,6 +545,79 @@ fun TelaPrincipal(
                 TextButton(onClick = { transacaoParaExcluir = null }) { Text("Cancelar") }
             }
         )
+    }
+}
+
+// Linha de ordenação e filtros da lista do Resumo. Rola na horizontal
+// para caber em telas estreitas.
+@Composable
+private fun ControlesLista(vm: TransacoesViewModel) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState())
+            .padding(horizontal = 16.dp, vertical = 8.dp)
+    ) {
+        // Ordenar
+        MenuSuspenso(
+            texto = "Ordenar: ${vm.ordenacaoLista.rotulo}",
+            opcoes = OrdenacaoLista.entries.map { it.rotulo to { vm.definirOrdenacao(it) } }
+        )
+        // Filtrar por categoria (só as que aparecem no mês)
+        MenuSuspenso(
+            texto = "Categoria: ${vm.filtroCategoria?.rotulo ?: "Todas"}",
+            selecionadoDestaque = vm.filtroCategoria != null,
+            opcoes = buildList {
+                add("Todas" to { vm.definirFiltroCategoria(null) })
+                vm.categoriasDoMes.forEach { cat ->
+                    add(cat.rotulo to { vm.definirFiltroCategoria(cat) })
+                }
+            }
+        )
+        // Filtrar por tipo
+        val rotuloTipo = when (vm.filtroTipoLista) {
+            TipoTransacao.GASTO -> "Só gastos"
+            TipoTransacao.GANHO -> "Só ganhos"
+            null -> "Tudo"
+        }
+        MenuSuspenso(
+            texto = rotuloTipo,
+            selecionadoDestaque = vm.filtroTipoLista != null,
+            opcoes = listOf(
+                "Tudo" to { vm.definirFiltroTipo(null) },
+                "Só gastos" to { vm.definirFiltroTipo(TipoTransacao.GASTO) },
+                "Só ganhos" to { vm.definirFiltroTipo(TipoTransacao.GANHO) }
+            )
+        )
+    }
+}
+
+@Composable
+private fun MenuSuspenso(
+    texto: String,
+    opcoes: List<Pair<String, () -> Unit>>,
+    selecionadoDestaque: Boolean = false
+) {
+    var aberto by remember { mutableStateOf(false) }
+    Box {
+        FilterChip(
+            selected = selecionadoDestaque,
+            onClick = { aberto = true },
+            label = { Text(text = texto, fontSize = 14.sp) }
+        )
+        DropdownMenu(expanded = aberto, onDismissRequest = { aberto = false }) {
+            opcoes.forEach { (rotulo, acao) ->
+                DropdownMenuItem(
+                    text = { Text(rotulo) },
+                    onClick = {
+                        acao()
+                        aberto = false
+                    }
+                )
+            }
+        }
     }
 }
 

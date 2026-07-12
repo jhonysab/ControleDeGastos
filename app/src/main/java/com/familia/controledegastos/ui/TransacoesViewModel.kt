@@ -32,6 +32,13 @@ data class ResumoMensal(
     val gastosCentavos: Long
 )
 
+enum class OrdenacaoLista(val rotulo: String) {
+    RECENTE("Mais recentes"),
+    ANTIGO("Mais antigos"),
+    MAIOR_VALOR("Maior valor"),
+    MENOR_VALOR("Menor valor")
+}
+
 // Tudo que a tela de lançamento coleta, num pacote só.
 data class DadosLancamento(
     val tipo: TipoTransacao,
@@ -69,6 +76,13 @@ class TransacoesViewModel(
 
     // null = família toda; uid = só o que aquela pessoa lançou
     var filtroUid by mutableStateOf<String?>(null)
+        private set
+    // Filtros/ordenação da LISTA do Resumo (não mexem nos totais do mês)
+    var ordenacaoLista by mutableStateOf(OrdenacaoLista.RECENTE)
+        private set
+    var filtroCategoria by mutableStateOf<Categoria?>(null)
+        private set
+    var filtroTipoLista by mutableStateOf<TipoTransacao?>(null)
         private set
     var mesSelecionado by mutableStateOf(YearMonth.now())
         private set
@@ -136,6 +150,36 @@ class TransacoesViewModel(
     fun definirFiltro(uid: String?) {
         filtroUid = uid
     }
+
+    fun definirOrdenacao(ordem: OrdenacaoLista) {
+        ordenacaoLista = ordem
+    }
+
+    fun definirFiltroCategoria(categoria: Categoria?) {
+        filtroCategoria = categoria
+    }
+
+    fun definirFiltroTipo(tipo: TipoTransacao?) {
+        filtroTipoLista = tipo
+    }
+
+    // Lista já filtrada (categoria/tipo) e ordenada, para a aba Resumo.
+    val transacoesExibidas: List<Transacao>
+        get() = transacoesDoMes
+            .filter { filtroCategoria == null || it.categoria == filtroCategoria }
+            .filter { filtroTipoLista == null || it.tipo == filtroTipoLista }
+            .let { lista ->
+                when (ordenacaoLista) {
+                    OrdenacaoLista.RECENTE -> lista.sortedByDescending { it.data }
+                    OrdenacaoLista.ANTIGO -> lista.sortedBy { it.data }
+                    OrdenacaoLista.MAIOR_VALOR -> lista.sortedByDescending { it.valorCentavos }
+                    OrdenacaoLista.MENOR_VALOR -> lista.sortedBy { it.valorCentavos }
+                }
+            }
+
+    // Categorias que realmente aparecem no mês (para o filtro não listar vazio)
+    val categoriasDoMes: List<Categoria>
+        get() = transacoesDoMes.map { it.categoria }.distinct().sortedBy { it.rotulo }
 
     // Ids das recorrências que já viraram lançamento no mês selecionado.
     // De propósito NÃO respeita o filtro por pessoa: a conta de luz
