@@ -50,14 +50,20 @@ import java.time.format.DateTimeFormatter
 @OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun TelaNovaTransacao(
-    aoSalvar: (TipoTransacao, Long, Categoria, String, LocalDate) -> Unit,
+    aoSalvar: (TipoTransacao, Long, Categoria, String, LocalDate, String) -> Unit,
     aoCancelar: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    // Pré-preenchimento quando o lançamento nasce de uma conta recorrente
+    tipoInicial: TipoTransacao = TipoTransacao.GASTO,
+    valorInicialCentavos: Long = 0L,
+    categoriaInicial: Categoria? = null,
+    descricaoInicial: String = "",
+    recorrenciaId: String = ""
 ) {
-    var tipo by remember { mutableStateOf(TipoTransacao.GASTO) }
-    var valorCentavos by remember { mutableLongStateOf(0L) }
-    var categoria by remember { mutableStateOf<Categoria?>(null) }
-    var descricao by remember { mutableStateOf("") }
+    var tipo by remember { mutableStateOf(tipoInicial) }
+    var valorCentavos by remember { mutableLongStateOf(valorInicialCentavos) }
+    var categoria by remember { mutableStateOf(categoriaInicial) }
+    var descricao by remember { mutableStateOf(descricaoInicial) }
     var dataSelecionada by remember { mutableStateOf(LocalDate.now()) }
     var mostrandoCalendario by remember { mutableStateOf(false) }
 
@@ -105,7 +111,7 @@ fun TelaNovaTransacao(
         Spacer(modifier = Modifier.height(24.dp))
 
         CampoValorMonetario(
-            valorInicialCentavos = 0L,
+            valorInicialCentavos = valorInicialCentavos,
             aoMudar = { valorCentavos = it },
             modifier = Modifier.fillMaxWidth()
         )
@@ -154,7 +160,7 @@ fun TelaNovaTransacao(
         Spacer(modifier = Modifier.height(32.dp))
 
         Button(
-            onClick = { aoSalvar(tipo, valorCentavos, categoria!!, descricao, dataSelecionada) },
+            onClick = { aoSalvar(tipo, valorCentavos, categoria!!, descricao, dataSelecionada, recorrenciaId) },
             enabled = valorCentavos > 0 && categoria != null,
             modifier = Modifier
                 .fillMaxWidth()

@@ -6,8 +6,10 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.familia.controledegastos.data.OrcamentoRepository
+import com.familia.controledegastos.data.RecorrenciaRepository
 import com.familia.controledegastos.data.TransacaoRepository
 import com.familia.controledegastos.model.Categoria
+import com.familia.controledegastos.model.Recorrencia
 import com.familia.controledegastos.model.TipoTransacao
 import com.familia.controledegastos.model.Transacao
 import com.google.firebase.Timestamp
@@ -29,12 +31,15 @@ class TransacoesViewModel(
     private val familiaId: String,
     private val uid: String,
     private val repo: TransacaoRepository = TransacaoRepository(),
-    private val orcamentoRepo: OrcamentoRepository = OrcamentoRepository()
+    private val orcamentoRepo: OrcamentoRepository = OrcamentoRepository(),
+    private val recorrenciaRepo: RecorrenciaRepository = RecorrenciaRepository()
 ) : ViewModel() {
 
     var transacoes by mutableStateOf<List<Transacao>>(emptyList())
         private set
     var orcamentos by mutableStateOf<Map<Categoria, Long>>(emptyMap())
+        private set
+    var recorrencias by mutableStateOf<List<Recorrencia>>(emptyList())
         private set
     var mesSelecionado by mutableStateOf(YearMonth.now())
         private set
@@ -62,6 +67,35 @@ class TransacoesViewModel(
             orcamentoRepo.observarOrcamentos(familiaId)
                 .catch { erro = "Não foi possível carregar os limites: ${it.message}" }
                 .collect { orcamentos = it }
+        }
+        escutas += viewModelScope.launch {
+            recorrenciaRepo.observar(familiaId)
+                .catch { erro = "Não foi possível carregar as contas: ${it.message}" }
+                .collect { recorrencias = it }
+        }
+    }
+
+    // Ids das recorrências que já viraram lançamento no mês selecionado.
+    val recorrenciasPagasNoMes: Set<String>
+        get() = transacoesDoMes.mapNotNull { it.recorrenciaId.ifBlank { null } }.toSet()
+
+    fun salvarRecorrencia(recorrencia: Recorrencia) {
+        viewModelScope.launch {
+            try {
+                recorrenciaRepo.salvar(familiaId, recorrencia)
+            } catch (e: Exception) {
+                erro = "Não foi possível salvar a conta: ${e.message}"
+            }
+        }
+    }
+
+    fun removerRecorrencia(recorrenciaId: String) {
+        viewModelScope.launch {
+            try {
+                recorrenciaRepo.remover(familiaId, recorrenciaId)
+            } catch (e: Exception) {
+                erro = "Não foi possível excluir a conta: ${e.message}"
+            }
         }
     }
 
@@ -133,7 +167,8 @@ class TransacoesViewModel(
         valorCentavos: Long,
         categoria: Categoria,
         descricao: String,
-        dia: LocalDate
+        dia: LocalDate,
+        recorrenciaId: String = ""
     ) {
         viewModelScope.launch {
             try {
@@ -149,7 +184,8 @@ class TransacoesViewModel(
                         data = Timestamp(
                             Date.from(dia.atTime(12, 0).atZone(ZoneId.systemDefault()).toInstant())
                         ),
-                        criadoPor = uid
+                        criadoPor = uid,
+                        recorrenciaId = recorrenciaId
                     )
                 )
             } catch (e: Exception) {

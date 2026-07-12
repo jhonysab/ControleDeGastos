@@ -46,6 +46,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.familia.controledegastos.model.Recorrencia
 import com.familia.controledegastos.model.TipoTransacao
 import com.familia.controledegastos.model.Transacao
 import com.familia.controledegastos.model.Usuario
@@ -69,6 +70,8 @@ fun TelaPrincipal(
     }
 ) {
     var lancando by remember { mutableStateOf(false) }
+    var recorrenciaParaLancar by remember { mutableStateOf<Recorrencia?>(null) }
+    var formRecorrencia by remember { mutableStateOf<Recorrencia?>(null) }
     var mostrandoAjustes by remember { mutableStateOf(false) }
     var transacaoParaExcluir by remember { mutableStateOf<Transacao?>(null) }
     var abaSelecionada by remember { mutableStateOf(0) }
@@ -80,12 +83,35 @@ fun TelaPrincipal(
     }
 
     if (lancando) {
+        val prefill = recorrenciaParaLancar
         TelaNovaTransacao(
-            aoSalvar = { tipo, valorCentavos, categoria, descricao, dia ->
-                vm.adicionar(tipo, valorCentavos, categoria, descricao, dia)
+            aoSalvar = { tipo, valorCentavos, categoria, descricao, dia, recorrenciaId ->
+                vm.adicionar(tipo, valorCentavos, categoria, descricao, dia, recorrenciaId)
                 lancando = false
+                recorrenciaParaLancar = null
             },
-            aoCancelar = { lancando = false },
+            aoCancelar = {
+                lancando = false
+                recorrenciaParaLancar = null
+            },
+            tipoInicial = prefill?.tipo ?: TipoTransacao.GASTO,
+            valorInicialCentavos = prefill?.valorEsperadoCentavos ?: 0L,
+            categoriaInicial = prefill?.categoria,
+            descricaoInicial = prefill?.descricao ?: "",
+            recorrenciaId = prefill?.id ?: "",
+            modifier = modifier
+        )
+        return
+    }
+
+    formRecorrencia?.let { recorrencia ->
+        TelaNovaRecorrencia(
+            recorrencia = recorrencia,
+            aoSalvar = {
+                vm.salvarRecorrencia(it)
+                formRecorrencia = null
+            },
+            aoCancelar = { formRecorrencia = null },
             modifier = modifier
         )
         return
@@ -147,6 +173,11 @@ fun TelaPrincipal(
                     onClick = { abaSelecionada = 2 },
                     text = { Text(text = "Limites", fontSize = 16.sp) }
                 )
+                Tab(
+                    selected = abaSelecionada == 3,
+                    onClick = { abaSelecionada = 3 },
+                    text = { Text(text = "Contas", fontSize = 16.sp) }
+                )
             }
 
             vm.erro?.let { mensagem ->
@@ -168,6 +199,18 @@ fun TelaPrincipal(
                     gastosPorCategoria = vm.gastosPorCategoria.toMap(),
                     orcamentos = vm.orcamentos,
                     aoDefinir = vm::definirOrcamento
+                )
+            } else if (abaSelecionada == 3) {
+                AbaContas(
+                    recorrencias = vm.recorrencias,
+                    pagasNoMes = vm.recorrenciasPagasNoMes,
+                    aoLancar = { recorrencia ->
+                        recorrenciaParaLancar = recorrencia
+                        lancando = true
+                    },
+                    aoEditar = { formRecorrencia = it },
+                    aoRemover = { vm.removerRecorrencia(it.id) },
+                    aoCriarNova = { formRecorrencia = Recorrencia() }
                 )
             } else {
 

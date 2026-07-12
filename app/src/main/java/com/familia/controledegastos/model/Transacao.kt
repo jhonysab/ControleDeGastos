@@ -19,7 +19,10 @@ data class Transacao(
     val categoria: Categoria = Categoria.OUTROS,
     val descricao: String = "",
     val data: Timestamp = Timestamp.now(),
-    val criadoPor: String = ""
+    val criadoPor: String = "",
+    // Se nasceu de uma conta recorrente, guarda o id dela —
+    // é assim que a aba Contas sabe que o mês está pago.
+    val recorrenciaId: String = ""
 ) {
     fun valorFormatado(): String = formatarCentavos(valorCentavos)
 }
