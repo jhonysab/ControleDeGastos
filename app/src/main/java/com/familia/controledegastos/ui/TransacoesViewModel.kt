@@ -84,6 +84,13 @@ class TransacoesViewModel(
         private set
     var filtroTipoLista by mutableStateOf<TipoTransacao?>(null)
         private set
+    var filtroForma by mutableStateOf<FormaPagamento?>(null)
+        private set
+    // quando não-nulo, restringe a um cartão específico (implica crédito)
+    var filtroCartaoId by mutableStateOf<String?>(null)
+        private set
+    var busca by mutableStateOf("")
+        private set
     var mesSelecionado by mutableStateOf(YearMonth.now())
         private set
     var erro by mutableStateOf<String?>(null)
@@ -163,11 +170,28 @@ class TransacoesViewModel(
         filtroTipoLista = tipo
     }
 
-    // Lista já filtrada (categoria/tipo) e ordenada, para a aba Resumo.
+    // forma nula + cartão nulo = todas as formas
+    fun definirFiltroForma(forma: FormaPagamento?, cartaoId: String? = null) {
+        filtroForma = forma
+        filtroCartaoId = cartaoId
+    }
+
+    fun definirBusca(texto: String) {
+        busca = texto
+    }
+
+    // Lista já filtrada (categoria/tipo/forma/busca) e ordenada, para a aba Resumo.
     val transacoesExibidas: List<Transacao>
         get() = transacoesDoMes
             .filter { filtroCategoria == null || it.categoria == filtroCategoria }
             .filter { filtroTipoLista == null || it.tipo == filtroTipoLista }
+            .filter { filtroForma == null || it.formaPagamento == filtroForma }
+            .filter { filtroCartaoId == null || it.cartaoId == filtroCartaoId }
+            .filter {
+                busca.isBlank() ||
+                    it.descricao.contains(busca, ignoreCase = true) ||
+                    it.categoria.rotulo.contains(busca, ignoreCase = true)
+            }
             .let { lista ->
                 when (ordenacaoLista) {
                     OrdenacaoLista.RECENTE -> lista.sortedByDescending { it.data }

@@ -23,9 +23,11 @@ import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
@@ -548,49 +550,90 @@ fun TelaPrincipal(
     }
 }
 
-// Linha de ordenação e filtros da lista do Resumo. Rola na horizontal
-// para caber em telas estreitas.
+// Busca + linha de ordenação e filtros da lista do Resumo.
+// A linha de chips rola na horizontal para caber em telas estreitas.
 @Composable
 private fun ControlesLista(vm: TransacoesViewModel) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        modifier = Modifier
-            .fillMaxWidth()
-            .horizontalScroll(rememberScrollState())
-            .padding(horizontal = 16.dp, vertical = 8.dp)
-    ) {
-        // Ordenar
-        MenuSuspenso(
-            texto = "Ordenar: ${vm.ordenacaoLista.rotulo}",
-            opcoes = OrdenacaoLista.entries.map { it.rotulo to { vm.definirOrdenacao(it) } }
-        )
-        // Filtrar por categoria (só as que aparecem no mês)
-        MenuSuspenso(
-            texto = "Categoria: ${vm.filtroCategoria?.rotulo ?: "Todas"}",
-            selecionadoDestaque = vm.filtroCategoria != null,
-            opcoes = buildList {
-                add("Todas" to { vm.definirFiltroCategoria(null) })
-                vm.categoriasDoMes.forEach { cat ->
-                    add(cat.rotulo to { vm.definirFiltroCategoria(cat) })
+    Column {
+        OutlinedTextField(
+            value = vm.busca,
+            onValueChange = { vm.definirBusca(it) },
+            label = { Text("Buscar por descrição ou categoria") },
+            singleLine = true,
+            leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
+            trailingIcon = {
+                if (vm.busca.isNotEmpty()) {
+                    IconButton(onClick = { vm.definirBusca("") }) {
+                        Icon(Icons.Filled.Clear, contentDescription = "Limpar busca")
+                    }
                 }
-            }
+            },
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 4.dp)
         )
-        // Filtrar por tipo
-        val rotuloTipo = when (vm.filtroTipoLista) {
-            TipoTransacao.GASTO -> "Só gastos"
-            TipoTransacao.GANHO -> "Só ganhos"
-            null -> "Tudo"
-        }
-        MenuSuspenso(
-            texto = rotuloTipo,
-            selecionadoDestaque = vm.filtroTipoLista != null,
-            opcoes = listOf(
-                "Tudo" to { vm.definirFiltroTipo(null) },
-                "Só gastos" to { vm.definirFiltroTipo(TipoTransacao.GASTO) },
-                "Só ganhos" to { vm.definirFiltroTipo(TipoTransacao.GANHO) }
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp, vertical = 4.dp)
+        ) {
+            // Ordenar
+            MenuSuspenso(
+                texto = "Ordenar: ${vm.ordenacaoLista.rotulo}",
+                opcoes = OrdenacaoLista.entries.map { it.rotulo to { vm.definirOrdenacao(it) } }
             )
-        )
+            // Filtrar por categoria (só as que aparecem no mês)
+            MenuSuspenso(
+                texto = "Categoria: ${vm.filtroCategoria?.rotulo ?: "Todas"}",
+                selecionadoDestaque = vm.filtroCategoria != null,
+                opcoes = buildList {
+                    add("Todas" to { vm.definirFiltroCategoria(null) })
+                    vm.categoriasDoMes.forEach { cat ->
+                        add(cat.rotulo to { vm.definirFiltroCategoria(cat) })
+                    }
+                }
+            )
+            // Filtrar por tipo
+            val rotuloTipo = when (vm.filtroTipoLista) {
+                TipoTransacao.GASTO -> "Só gastos"
+                TipoTransacao.GANHO -> "Só ganhos"
+                null -> "Tudo"
+            }
+            MenuSuspenso(
+                texto = rotuloTipo,
+                selecionadoDestaque = vm.filtroTipoLista != null,
+                opcoes = listOf(
+                    "Tudo" to { vm.definirFiltroTipo(null) },
+                    "Só gastos" to { vm.definirFiltroTipo(TipoTransacao.GASTO) },
+                    "Só ganhos" to { vm.definirFiltroTipo(TipoTransacao.GANHO) }
+                )
+            )
+            // Filtrar por forma de pagamento / cartão específico
+            val rotuloForma = when {
+                vm.filtroCartaoId != null ->
+                    vm.cartoes.firstOrNull { it.id == vm.filtroCartaoId }?.nome ?: "Cartão"
+                vm.filtroForma != null -> vm.filtroForma!!.rotulo
+                else -> "Forma: todas"
+            }
+            MenuSuspenso(
+                texto = rotuloForma,
+                selecionadoDestaque = vm.filtroForma != null || vm.filtroCartaoId != null,
+                opcoes = buildList {
+                    add("Todas as formas" to { vm.definirFiltroForma(null) })
+                    FormaPagamento.entries.forEach { forma ->
+                        add(forma.rotulo to { vm.definirFiltroForma(forma) })
+                    }
+                    vm.cartoes.forEach { cartao ->
+                        add("Cartão: ${cartao.nome}" to {
+                            vm.definirFiltroForma(FormaPagamento.CREDITO, cartao.id)
+                        })
+                    }
+                }
+            )
+        }
     }
 }
 
