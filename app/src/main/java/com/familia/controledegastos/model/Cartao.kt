@@ -8,5 +8,9 @@ import com.google.firebase.firestore.DocumentId
 data class Cartao(
     @DocumentId val id: String = "",
     val nome: String = "",
-    val diaVencimento: Int = 1
+    val diaVencimento: Int = 1,
+    // A fatura "vira" no fechamento: compras depois dele caem no ciclo seguinte.
+    val diaFechamento: Int = 1,
+    // 0 = limite não cadastrado (a barra de uso não aparece)
+    val limiteCentavos: Long = 0L
 )

@@ -62,7 +62,12 @@ service cloud.firestore {
           && request.resource.data.nome.size() > 0
           && request.resource.data.diaVencimento is int
           && request.resource.data.diaVencimento >= 1
-          && request.resource.data.diaVencimento <= 31;
+          && request.resource.data.diaVencimento <= 31
+          && request.resource.data.diaFechamento is int
+          && request.resource.data.diaFechamento >= 1
+          && request.resource.data.diaFechamento <= 31
+          && request.resource.data.limiteCentavos is int
+          && request.resource.data.limiteCentavos >= 0;
       }
 
       // Contas recorrentes: modelos de lançamento mensal (luz, água...).

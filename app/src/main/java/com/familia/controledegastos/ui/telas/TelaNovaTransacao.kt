@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -45,6 +46,7 @@ import com.familia.controledegastos.model.Cartao
 import com.familia.controledegastos.model.Categoria
 import com.familia.controledegastos.model.FormaPagamento
 import com.familia.controledegastos.model.TipoTransacao
+import com.familia.controledegastos.model.formatarCentavos
 import com.familia.controledegastos.ui.DadosLancamento
 import java.time.Instant
 import java.time.LocalDate
@@ -77,6 +79,7 @@ fun TelaNovaTransacao(
     var mostrandoCalendario by remember { mutableStateOf(false) }
     var formaPagamento by remember { mutableStateOf(formaPagamentoInicial) }
     var cartaoId by remember { mutableStateOf(cartaoIdInicial) }
+    var parcelas by remember { mutableStateOf(1) }
 
     BackHandler(onBack = aoCancelar)
 
@@ -204,6 +207,33 @@ fun TelaNovaTransacao(
                     Text(text = "Fatura vence dia ${it.diaVencimento}", fontSize = 13.sp)
                 }
             }
+
+            // Parcelar só faz sentido em compra nova (editar parcela é individual)
+            if (!editando && tipo == TipoTransacao.GASTO) {
+                Spacer(modifier = Modifier.height(16.dp))
+                RotuloSecao(texto = "Parcelas")
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    OutlinedButton(
+                        onClick = { if (parcelas > 1) parcelas-- },
+                        enabled = parcelas > 1
+                    ) { Text(text = "−", fontSize = 20.sp) }
+                    Text(
+                        text = if (parcelas == 1) "À vista" else "${parcelas}x",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Medium,
+                        modifier = Modifier.padding(horizontal = 16.dp)
+                    )
+                    OutlinedButton(
+                        onClick = { if (parcelas < 24) parcelas++ }
+                    ) { Text(text = "+", fontSize = 20.sp) }
+                    if (parcelas > 1 && valorCentavos > 0) {
+                        Text(
+                            text = "  de ${formatarCentavos(valorCentavos / parcelas)}/mês",
+                            fontSize = 14.sp
+                        )
+                    }
+                }
+            }
         }
         Spacer(modifier = Modifier.height(24.dp))
 
@@ -235,7 +265,8 @@ fun TelaNovaTransacao(
                         dia = dataSelecionada,
                         recorrenciaId = recorrenciaId,
                         formaPagamento = formaPagamento,
-                        cartaoId = cartaoId
+                        cartaoId = cartaoId,
+                        parcelas = parcelas
                     )
                 )
             },

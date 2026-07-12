@@ -16,10 +16,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.Icon
@@ -35,12 +34,19 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.familia.controledegastos.R
 import com.familia.controledegastos.model.Cartao
+import com.familia.controledegastos.model.formatarCentavos
+import com.familia.controledegastos.ui.theme.VerdeGanho
 import com.familia.controledegastos.ui.theme.VermelhoGasto
+
+private val CorAlertaLimite = Color(0xFFB26A00)
 
 // Cadastro dos cartões de crédito da família.
 // Toque para editar, toque longo para excluir.
@@ -48,6 +54,7 @@ import com.familia.controledegastos.ui.theme.VermelhoGasto
 @Composable
 fun TelaCartoes(
     cartoes: List<Cartao>,
+    faturaDe: (Cartao) -> Long,
     aoSalvar: (Cartao) -> Unit,
     aoRemover: (Cartao) -> Unit,
     aoVoltar: () -> Unit,
@@ -109,7 +116,7 @@ fun TelaCartoes(
                             )
                     ) {
                         Icon(
-                            Icons.Filled.ShoppingCart,
+                            painter = painterResource(R.drawable.ic_cartao),
                             contentDescription = null,
                             tint = MaterialTheme.colorScheme.primary
                         )
@@ -118,10 +125,48 @@ fun TelaCartoes(
                     Column(modifier = Modifier.weight(1f)) {
                         Text(text = cartao.nome, fontSize = 17.sp, fontWeight = FontWeight.Medium)
                         Text(
-                            text = "Fatura vence dia ${cartao.diaVencimento}",
+                            text = "Fecha dia ${cartao.diaFechamento} • Vence dia ${cartao.diaVencimento}",
                             fontSize = 14.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
+                        Spacer(modifier = Modifier.height(6.dp))
+
+                        val fatura = faturaDe(cartao)
+                        Text(
+                            text = "Fatura atual: ${formatarCentavos(fatura)}",
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                        if (cartao.limiteCentavos > 0) {
+                            val fracao = fatura.toFloat() / cartao.limiteCentavos
+                            val corBarra = when {
+                                fracao > 1f -> VermelhoGasto
+                                fracao >= 0.8f -> CorAlertaLimite
+                                else -> VerdeGanho
+                            }
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(8.dp)
+                                    .background(
+                                        color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                                        shape = RoundedCornerShape(4.dp)
+                                    )
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth(fraction = fracao.coerceIn(0f, 1f))
+                                        .height(8.dp)
+                                        .background(color = corBarra, shape = RoundedCornerShape(4.dp))
+                                )
+                            }
+                            Text(
+                                text = "de ${formatarCentavos(cartao.limiteCentavos)} de limite",
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
                 }
             }
@@ -147,16 +192,21 @@ fun TelaCartoes(
 
     editando?.let { cartao ->
         var nome by remember(cartao) { mutableStateOf(cartao.nome) }
-        var diaTexto by remember(cartao) {
+        var vencimentoTexto by remember(cartao) {
             mutableStateOf(if (cartao.id.isBlank()) "" else cartao.diaVencimento.toString())
         }
-        val dia = diaTexto.toIntOrNull()
+        var fechamentoTexto by remember(cartao) {
+            mutableStateOf(if (cartao.id.isBlank()) "" else cartao.diaFechamento.toString())
+        }
+        var limiteCentavos by remember(cartao) { mutableStateOf(cartao.limiteCentavos) }
+        val vencimento = vencimentoTexto.toIntOrNull()
+        val fechamento = fechamentoTexto.toIntOrNull()
 
         AlertDialog(
             onDismissRequest = { editando = null },
             title = { Text(if (cartao.id.isBlank()) "Novo cartão" else "Editar cartão") },
             text = {
-                Column {
+                Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
                     OutlinedTextField(
                         value = nome,
                         onValueChange = { nome = it },
@@ -166,11 +216,27 @@ fun TelaCartoes(
                     )
                     Spacer(modifier = Modifier.height(12.dp))
                     OutlinedTextField(
-                        value = diaTexto,
-                        onValueChange = { novo -> diaTexto = novo.filter { it.isDigit() }.take(2) },
+                        value = fechamentoTexto,
+                        onValueChange = { novo -> fechamentoTexto = novo.filter { it.isDigit() }.take(2) },
+                        label = { Text("Dia do fechamento da fatura") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    OutlinedTextField(
+                        value = vencimentoTexto,
+                        onValueChange = { novo -> vencimentoTexto = novo.filter { it.isDigit() }.take(2) },
                         label = { Text("Dia do vencimento da fatura") },
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    CampoValorMonetario(
+                        valorInicialCentavos = cartao.limiteCentavos,
+                        aoMudar = { limiteCentavos = it },
+                        rotulo = "Limite do cartão (opcional)",
                         modifier = Modifier.fillMaxWidth()
                     )
                 }
@@ -178,10 +244,19 @@ fun TelaCartoes(
             confirmButton = {
                 TextButton(
                     onClick = {
-                        aoSalvar(cartao.copy(nome = nome.trim(), diaVencimento = dia!!))
+                        aoSalvar(
+                            cartao.copy(
+                                nome = nome.trim(),
+                                diaVencimento = vencimento!!,
+                                diaFechamento = fechamento!!,
+                                limiteCentavos = limiteCentavos
+                            )
+                        )
                         editando = null
                     },
-                    enabled = nome.isNotBlank() && dia != null && dia in 1..31
+                    enabled = nome.isNotBlank() &&
+                        vencimento != null && vencimento in 1..31 &&
+                        fechamento != null && fechamento in 1..31
                 ) { Text("Salvar") }
             },
             dismissButton = {

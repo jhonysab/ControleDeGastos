@@ -41,7 +41,9 @@ data class DadosLancamento(
     val dia: LocalDate,
     val recorrenciaId: String = "",
     val formaPagamento: FormaPagamento = FormaPagamento.DINHEIRO,
-    val cartaoId: String = ""
+    val cartaoId: String = "",
+    // > 1 divide a compra em N lançamentos mensais (só no crédito)
+    val parcelas: Int = 1
 )
 
 class TransacoesViewModel(
@@ -236,29 +238,85 @@ class TransacoesViewModel(
     fun adicionar(dados: DadosLancamento) {
         viewModelScope.launch {
             try {
-                repo.adicionar(
-                    familiaId,
-                    Transacao(
-                        tipo = dados.tipo,
-                        valorCentavos = dados.valorCentavos,
-                        categoria = dados.categoria,
-                        descricao = dados.descricao.trim(),
-                        // meio-dia local: longe das bordas de fuso, o dia
-                        // nunca "escorrega" para o mês vizinho
-                        data = Timestamp(
-                            Date.from(dados.dia.atTime(12, 0).atZone(ZoneId.systemDefault()).toInstant())
-                        ),
-                        criadoPor = uid,
-                        recorrenciaId = dados.recorrenciaId,
-                        formaPagamento = dados.formaPagamento,
-                        cartaoId = dados.cartaoId
+                val n = if (dados.formaPagamento == FormaPagamento.CREDITO) {
+                    dados.parcelas.coerceIn(1, 24)
+                } else 1
+
+                if (n == 1) {
+                    repo.adicionar(
+                        familiaId,
+                        montarTransacao(dados, dados.valorCentavos, dados.descricao.trim(), dados.dia)
                     )
-                )
+                } else {
+                    // o valor digitado é o TOTAL da compra; divide em N
+                    // parcelas e a primeira absorve a sobra dos centavos
+                    val parcela = dados.valorCentavos / n
+                    val primeira = dados.valorCentavos - parcela * (n - 1)
+                    val descBase = dados.descricao.trim().ifBlank { dados.categoria.rotulo }
+                    repeat(n) { i ->
+                        repo.adicionar(
+                            familiaId,
+                            montarTransacao(
+                                dados,
+                                if (i == 0) primeira else parcela,
+                                "$descBase ${i + 1}/$n",
+                                dados.dia.plusMonths(i.toLong())
+                            )
+                        )
+                    }
+                }
             } catch (e: Exception) {
                 erro = "Não foi possível salvar: ${e.message}"
             }
         }
     }
+
+    private fun montarTransacao(
+        dados: DadosLancamento,
+        valorCentavos: Long,
+        descricao: String,
+        dia: LocalDate
+    ) = Transacao(
+        tipo = dados.tipo,
+        valorCentavos = valorCentavos,
+        categoria = dados.categoria,
+        descricao = descricao,
+        // meio-dia local: longe das bordas de fuso, o dia
+        // nunca "escorrega" para o mês vizinho
+        data = Timestamp(
+            Date.from(dia.atTime(12, 0).atZone(ZoneId.systemDefault()).toInstant())
+        ),
+        criadoPor = uid,
+        recorrenciaId = dados.recorrenciaId,
+        formaPagamento = dados.formaPagamento,
+        cartaoId = dados.cartaoId
+    )
+
+    // Fatura "aberta" do cartão: compras no crédito entre o fechamento
+    // anterior e o próximo fechamento.
+    fun faturaAtualCentavos(cartao: Cartao): Long {
+        val hoje = LocalDate.now()
+        fun fechamento(mes: YearMonth): LocalDate =
+            mes.atDay(minOf(cartao.diaFechamento, mes.lengthOfMonth()))
+
+        val fechamentoDesteMes = fechamento(YearMonth.from(hoje))
+        val (inicio, fim) = if (hoje.isAfter(fechamentoDesteMes)) {
+            fechamentoDesteMes.plusDays(1) to fechamento(YearMonth.from(hoje).plusMonths(1))
+        } else {
+            fechamento(YearMonth.from(hoje).minusMonths(1)).plusDays(1) to fechamentoDesteMes
+        }
+
+        return transacoes.filter {
+            it.formaPagamento == FormaPagamento.CREDITO &&
+                it.cartaoId == cartao.id &&
+                it.tipo == TipoTransacao.GASTO &&
+                !diaDaTransacao(it).isBefore(inicio) &&
+                !diaDaTransacao(it).isAfter(fim)
+        }.sumOf { it.valorCentavos }
+    }
+
+    private fun diaDaTransacao(t: Transacao): LocalDate =
+        t.data.toDate().toInstant().atZone(ZoneId.systemDefault()).toLocalDate()
 
     // Edição: preserva quem criou e o vínculo com a recorrência,
     // troca só o que a tela permite mudar.
