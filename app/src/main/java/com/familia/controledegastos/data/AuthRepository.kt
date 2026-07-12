@@ -5,6 +5,7 @@ import com.familia.controledegastos.model.Usuario
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.FirebaseFirestoreException
 import kotlinx.coroutines.tasks.await
 
 // Cuida de login/cadastro (Firebase Auth) e da ponte com as
@@ -45,13 +46,21 @@ class AuthRepository(
     }
 
     // O "código da família" é o próprio id do documento no Firestore.
+    // Não dá pra LER a família antes de ser membro (as regras proíbem),
+    // então tentamos entrar direto e traduzimos a recusa.
     suspend fun entrarNaFamilia(codigoDigitado: String, uid: String): String {
         val codigo = codigoDigitado.trim()
-        val ref = db.collection("familias").document(codigo)
-        if (!ref.get().await().exists()) {
-            throw IllegalArgumentException("Família não encontrada. Confira o código.")
+        try {
+            db.collection("familias").document(codigo)
+                .update("membros", FieldValue.arrayUnion(uid)).await()
+        } catch (e: FirebaseFirestoreException) {
+            when (e.code) {
+                FirebaseFirestoreException.Code.NOT_FOUND,
+                FirebaseFirestoreException.Code.PERMISSION_DENIED ->
+                    throw IllegalArgumentException("Família não encontrada. Confira o código.")
+                else -> throw e
+            }
         }
-        ref.update("membros", FieldValue.arrayUnion(uid)).await()
         db.collection("usuarios").document(uid).update("familiaId", codigo).await()
         return codigo
     }
