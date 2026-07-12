@@ -1,6 +1,7 @@
 package com.familia.controledegastos.data
 
 import com.familia.controledegastos.model.Transacao
+import com.google.firebase.Timestamp
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
 import kotlinx.coroutines.channels.awaitClose
@@ -33,6 +34,14 @@ class TransacaoRepository(
             }
         awaitClose { inscricao.remove() }
     }
+
+    // Busca única (sem ouvinte) — usada pelo lembrete em segundo plano.
+    suspend fun listarPeriodo(familiaId: String, de: Timestamp, ate: Timestamp): List<Transacao> =
+        colecao(familiaId)
+            .whereGreaterThanOrEqualTo("data", de)
+            .whereLessThan("data", ate)
+            .get().await()
+            .toObjects(Transacao::class.java)
 
     suspend fun adicionar(familiaId: String, transacao: Transacao) {
         colecao(familiaId).add(transacao).await()

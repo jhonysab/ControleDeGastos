@@ -1,5 +1,8 @@
 package com.familia.controledegastos
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -18,6 +21,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.PeriodicWorkRequestBuilder
+import androidx.work.WorkManager
+import com.familia.controledegastos.notificacoes.LembreteVencimentoWorker
 import com.familia.controledegastos.ui.AuthViewModel
 import com.familia.controledegastos.ui.EstadoAuth
 import com.familia.controledegastos.ui.telas.TelaCadastro
@@ -25,17 +32,40 @@ import com.familia.controledegastos.ui.telas.TelaFamilia
 import com.familia.controledegastos.ui.telas.TelaLogin
 import com.familia.controledegastos.ui.telas.TelaPrincipal
 import com.familia.controledegastos.ui.theme.ControleDeGastosTheme
+import java.util.concurrent.TimeUnit
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        agendarLembretes()
+        pedirPermissaoDeNotificacao()
         setContent {
             ControleDeGastosTheme {
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
                     App(modifier = Modifier.padding(innerPadding))
                 }
             }
+        }
+    }
+
+    // Checagem diária de contas perto do vencimento, mesmo com o app
+    // fechado. KEEP: se já está agendada, não duplica.
+    private fun agendarLembretes() {
+        val pedido = PeriodicWorkRequestBuilder<LembreteVencimentoWorker>(24, TimeUnit.HOURS).build()
+        WorkManager.getInstance(this).enqueueUniquePeriodicWork(
+            "lembretes-vencimento",
+            ExistingPeriodicWorkPolicy.KEEP,
+            pedido
+        )
+    }
+
+    private fun pedirPermissaoDeNotificacao() {
+        if (Build.VERSION.SDK_INT >= 33 &&
+            checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) !=
+            PackageManager.PERMISSION_GRANTED
+        ) {
+            requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 1)
         }
     }
 }

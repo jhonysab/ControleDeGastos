@@ -29,6 +29,10 @@ class RecorrenciaRepository(
         awaitClose { inscricao.remove() }
     }
 
+    // Busca única (sem ouvinte) — usada pelo lembrete em segundo plano.
+    suspend fun listar(familiaId: String): List<Recorrencia> =
+        colecao(familiaId).get().await().toObjects(Recorrencia::class.java)
+
     // id em branco = conta nova; com id = edição da existente.
     suspend fun salvar(familiaId: String, recorrencia: Recorrencia) {
         if (recorrencia.id.isBlank()) {
