@@ -57,6 +57,8 @@ import java.time.format.DateTimeFormatter
 @Composable
 fun TelaNovaTransacao(
     cartoes: List<Cartao>,
+    categoriasGasto: List<Categoria>,
+    categoriasGanho: List<Categoria>,
     aoSalvar: (DadosLancamento) -> Unit,
     aoCancelar: () -> Unit,
     modifier: Modifier = Modifier,
@@ -83,11 +85,7 @@ fun TelaNovaTransacao(
 
     BackHandler(onBack = aoCancelar)
 
-    val categoriasVisiveis = if (tipo == TipoTransacao.GANHO) {
-        listOf(Categoria.SALARIO, Categoria.OUTROS)
-    } else {
-        Categoria.entries.filter { it != Categoria.SALARIO }
-    }
+    val categoriasVisiveis = if (tipo == TipoTransacao.GANHO) categoriasGanho else categoriasGasto
 
     Column(
         modifier = modifier
@@ -108,7 +106,7 @@ fun TelaNovaTransacao(
                 selected = tipo == TipoTransacao.GASTO,
                 onClick = {
                     tipo = TipoTransacao.GASTO
-                    if (categoria == Categoria.SALARIO) categoria = null
+                    if (categoria?.serveParaGasto() == false) categoria = null
                 },
                 shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2)
             ) {
@@ -118,9 +116,7 @@ fun TelaNovaTransacao(
                 selected = tipo == TipoTransacao.GANHO,
                 onClick = {
                     tipo = TipoTransacao.GANHO
-                    if (categoria != null && categoria != Categoria.SALARIO && categoria != Categoria.OUTROS) {
-                        categoria = null
-                    }
+                    if (categoria?.serveParaGanho() == false) categoria = null
                 },
                 shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2)
             ) {
@@ -140,7 +136,7 @@ fun TelaNovaTransacao(
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             categoriasVisiveis.forEach { c ->
                 FilterChip(
-                    selected = categoria == c,
+                    selected = categoria?.id == c.id,
                     onClick = { categoria = c },
                     label = { Text(text = c.rotulo, fontSize = 15.sp) }
                 )

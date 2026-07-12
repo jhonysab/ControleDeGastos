@@ -9,7 +9,7 @@ data class Recorrencia(
     @DocumentId val id: String = "",
     val descricao: String = "",
     val tipo: TipoTransacao = TipoTransacao.GASTO,
-    val categoria: Categoria = Categoria.OUTROS,
+    val categoria: String = "", // ID da categoria (ver Transacao.categoria)
     val valorEsperadoCentavos: Long = 0L,
     val diaVencimento: Int = 1
 )

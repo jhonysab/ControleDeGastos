@@ -42,9 +42,10 @@ private val CorAlerta = Color(0xFFB26A00) // 80–100% do limite
 
 @Composable
 fun AbaOrcamento(
-    gastosPorCategoria: Map<Categoria, Long>,
-    orcamentos: Map<Categoria, Long>,
-    aoDefinir: (Categoria, Long) -> Unit,
+    categorias: List<Categoria>,
+    gastoPorCategoriaId: Map<String, Long>,
+    orcamentos: Map<String, Long>,
+    aoDefinir: (String, Long) -> Unit,
     modifier: Modifier = Modifier
 ) {
     var editando by remember { mutableStateOf<Categoria?>(null) }
@@ -63,25 +64,23 @@ fun AbaOrcamento(
         )
         Spacer(modifier = Modifier.height(8.dp))
 
-        Categoria.entries
-            .filter { it != Categoria.SALARIO }
-            .forEach { categoria ->
-                LinhaOrcamento(
-                    categoria = categoria,
-                    gastoCentavos = gastosPorCategoria[categoria] ?: 0L,
-                    limiteCentavos = orcamentos[categoria],
-                    aoTocar = { editando = categoria }
-                )
-            }
+        categorias.forEach { categoria ->
+            LinhaOrcamento(
+                categoria = categoria,
+                gastoCentavos = gastoPorCategoriaId[categoria.id] ?: 0L,
+                limiteCentavos = orcamentos[categoria.id],
+                aoTocar = { editando = categoria }
+            )
+        }
         Spacer(modifier = Modifier.height(80.dp)) // respiro para o botão Lançar
     }
 
     editando?.let { categoria ->
         DialogoLimite(
             categoria = categoria,
-            limiteAtualCentavos = orcamentos[categoria] ?: 0L,
+            limiteAtualCentavos = orcamentos[categoria.id] ?: 0L,
             aoSalvar = { novoLimite ->
-                aoDefinir(categoria, novoLimite)
+                aoDefinir(categoria.id, novoLimite)
                 editando = null
             },
             aoFechar = { editando = null }

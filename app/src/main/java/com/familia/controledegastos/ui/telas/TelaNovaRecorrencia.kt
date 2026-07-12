@@ -44,15 +44,18 @@ import com.familia.controledegastos.model.TipoTransacao
 @Composable
 fun TelaNovaRecorrencia(
     recorrencia: Recorrencia,
+    categoriasGasto: List<Categoria>,
+    categoriasGanho: List<Categoria>,
     aoSalvar: (Recorrencia) -> Unit,
     aoCancelar: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val todasCategorias = (categoriasGasto + categoriasGanho).distinctBy { it.id }
     var tipo by remember { mutableStateOf(recorrencia.tipo) }
     var descricao by remember { mutableStateOf(recorrencia.descricao) }
     var valorCentavos by remember { mutableLongStateOf(recorrencia.valorEsperadoCentavos) }
     var categoria by remember {
-        mutableStateOf(if (recorrencia.id.isBlank()) null else recorrencia.categoria)
+        mutableStateOf(todasCategorias.firstOrNull { it.id == recorrencia.categoria })
     }
     var diaTexto by remember {
         mutableStateOf(if (recorrencia.id.isBlank()) "" else recorrencia.diaVencimento.toString())
@@ -61,11 +64,7 @@ fun TelaNovaRecorrencia(
     BackHandler(onBack = aoCancelar)
 
     val dia = diaTexto.toIntOrNull()
-    val categoriasVisiveis = if (tipo == TipoTransacao.GANHO) {
-        listOf(Categoria.SALARIO, Categoria.OUTROS)
-    } else {
-        Categoria.entries.filter { it != Categoria.SALARIO }
-    }
+    val categoriasVisiveis = if (tipo == TipoTransacao.GANHO) categoriasGanho else categoriasGasto
 
     Column(
         modifier = modifier
@@ -90,7 +89,7 @@ fun TelaNovaRecorrencia(
                 selected = tipo == TipoTransacao.GASTO,
                 onClick = {
                     tipo = TipoTransacao.GASTO
-                    if (categoria == Categoria.SALARIO) categoria = null
+                    if (categoria?.serveParaGasto() == false) categoria = null
                 },
                 shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2)
             ) {
@@ -100,9 +99,7 @@ fun TelaNovaRecorrencia(
                 selected = tipo == TipoTransacao.GANHO,
                 onClick = {
                     tipo = TipoTransacao.GANHO
-                    if (categoria != null && categoria != Categoria.SALARIO && categoria != Categoria.OUTROS) {
-                        categoria = null
-                    }
+                    if (categoria?.serveParaGanho() == false) categoria = null
                 },
                 shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2)
             ) {
@@ -150,7 +147,7 @@ fun TelaNovaRecorrencia(
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             categoriasVisiveis.forEach { c ->
                 FilterChip(
-                    selected = categoria == c,
+                    selected = categoria?.id == c.id,
                     onClick = { categoria = c },
                     label = { Text(text = c.rotulo, fontSize = 15.sp) }
                 )
@@ -165,7 +162,7 @@ fun TelaNovaRecorrencia(
                         tipo = tipo,
                         descricao = descricao.trim(),
                         valorEsperadoCentavos = valorCentavos,
-                        categoria = categoria!!,
+                        categoria = categoria!!.id,
                         diaVencimento = dia!!
                     )
                 )

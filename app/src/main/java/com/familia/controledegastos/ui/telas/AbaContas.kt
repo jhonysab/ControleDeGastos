@@ -37,7 +37,7 @@ import com.familia.controledegastos.model.Recorrencia
 import com.familia.controledegastos.model.formatarCentavos
 import com.familia.controledegastos.ui.theme.VerdeGanho
 import com.familia.controledegastos.ui.theme.VermelhoGasto
-import com.familia.controledegastos.ui.theme.cor
+import androidx.compose.ui.graphics.Color
 
 // Contas do mês: cada recorrência com seu status no mês selecionado.
 // Toque = editar; toque longo = excluir; "Lançar" = registrar o
@@ -47,6 +47,7 @@ import com.familia.controledegastos.ui.theme.cor
 fun AbaContas(
     recorrencias: List<Recorrencia>,
     pagasNoMes: Set<String>,
+    corDaCategoria: (String) -> Color,
     aoLancar: (Recorrencia) -> Unit,
     aoEditar: (Recorrencia) -> Unit,
     aoRemover: (Recorrencia) -> Unit,
@@ -94,7 +95,7 @@ fun AbaContas(
                 Box(
                     modifier = Modifier
                         .size(14.dp)
-                        .background(color = recorrencia.categoria.cor(), shape = CircleShape)
+                        .background(color = corDaCategoria(recorrencia.categoria), shape = CircleShape)
                 )
                 Spacer(modifier = Modifier.width(10.dp))
                 Column(modifier = Modifier.weight(1f)) {

@@ -6,12 +6,14 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.familia.controledegastos.data.AuthRepository
+import com.familia.controledegastos.data.CategoriaRepository
 import com.familia.controledegastos.data.OrcamentoRepository
 import com.familia.controledegastos.data.RecorrenciaRepository
 import com.familia.controledegastos.data.TransacaoRepository
 import com.familia.controledegastos.data.CartaoRepository
 import com.familia.controledegastos.model.Cartao
 import com.familia.controledegastos.model.Categoria
+import com.familia.controledegastos.model.CategoriasPadrao
 import com.familia.controledegastos.model.FormaPagamento
 import com.familia.controledegastos.model.Recorrencia
 import com.familia.controledegastos.model.Usuario
@@ -60,12 +62,15 @@ class TransacoesViewModel(
     private val orcamentoRepo: OrcamentoRepository = OrcamentoRepository(),
     private val recorrenciaRepo: RecorrenciaRepository = RecorrenciaRepository(),
     private val cartaoRepo: CartaoRepository = CartaoRepository(),
+    private val categoriaRepo: CategoriaRepository = CategoriaRepository(),
     private val authRepo: AuthRepository = AuthRepository()
 ) : ViewModel() {
 
     var transacoes by mutableStateOf<List<Transacao>>(emptyList())
         private set
-    var orcamentos by mutableStateOf<Map<Categoria, Long>>(emptyMap())
+    var orcamentos by mutableStateOf<Map<String, Long>>(emptyMap())
+        private set
+    var categorias by mutableStateOf<List<Categoria>>(emptyList())
         private set
     var recorrencias by mutableStateOf<List<Recorrencia>>(emptyList())
         private set
@@ -80,7 +85,7 @@ class TransacoesViewModel(
     // Filtros/ordenação da LISTA do Resumo (não mexem nos totais do mês)
     var ordenacaoLista by mutableStateOf(OrdenacaoLista.RECENTE)
         private set
-    var filtroCategoria by mutableStateOf<Categoria?>(null)
+    var filtroCategoriaId by mutableStateOf<String?>(null)
         private set
     var filtroTipoLista by mutableStateOf<TipoTransacao?>(null)
         private set
@@ -128,9 +133,52 @@ class TransacoesViewModel(
                 .catch { erro = "Não foi possível carregar os cartões: ${it.message}" }
                 .collect { cartoes = it }
         }
+        escutas += viewModelScope.launch {
+            categoriaRepo.observar(familiaId)
+                .catch { erro = "Não foi possível carregar as categorias: ${it.message}" }
+                .collect { categorias = it }
+        }
+        viewModelScope.launch {
+            // primeira vez da família: cria as categorias iniciais
+            runCatching { categoriaRepo.semearSePreciso(familiaId) }
+        }
         viewModelScope.launch {
             // nomes mudam raramente: uma busca por sessão basta
             runCatching { membros = authRepo.carregarMembros(familiaId) }
+        }
+    }
+
+    // Resolve o ID guardado no lançamento para a categoria completa.
+    private val categoriaPorId: Map<String, Categoria>
+        get() = categorias.associateBy { it.id }
+
+    fun resolverCategoria(id: String): Categoria =
+        categoriaPorId[id] ?: CategoriasPadrao.removida.copy(nome = "Sem categoria")
+
+    // Ativas (não arquivadas) para cada tipo de lançamento
+    val categoriasParaGasto: List<Categoria>
+        get() = categorias.filter { !it.arquivada && it.serveParaGasto() }
+
+    val categoriasParaGanho: List<Categoria>
+        get() = categorias.filter { !it.arquivada && it.serveParaGanho() }
+
+    fun salvarCategoria(categoria: Categoria) {
+        viewModelScope.launch {
+            try {
+                categoriaRepo.salvar(familiaId, categoria)
+            } catch (e: Exception) {
+                erro = "Não foi possível salvar a categoria: ${e.message}"
+            }
+        }
+    }
+
+    fun arquivarCategoria(categoriaId: String, arquivada: Boolean) {
+        viewModelScope.launch {
+            try {
+                categoriaRepo.arquivar(familiaId, categoriaId, arquivada)
+            } catch (e: Exception) {
+                erro = "Não foi possível arquivar a categoria: ${e.message}"
+            }
         }
     }
 
@@ -162,8 +210,8 @@ class TransacoesViewModel(
         ordenacaoLista = ordem
     }
 
-    fun definirFiltroCategoria(categoria: Categoria?) {
-        filtroCategoria = categoria
+    fun definirFiltroCategoria(categoriaId: String?) {
+        filtroCategoriaId = categoriaId
     }
 
     fun definirFiltroTipo(tipo: TipoTransacao?) {
@@ -183,14 +231,14 @@ class TransacoesViewModel(
     // Lista já filtrada (categoria/tipo/forma/busca) e ordenada, para a aba Resumo.
     val transacoesExibidas: List<Transacao>
         get() = transacoesDoMes
-            .filter { filtroCategoria == null || it.categoria == filtroCategoria }
+            .filter { filtroCategoriaId == null || it.categoria == filtroCategoriaId }
             .filter { filtroTipoLista == null || it.tipo == filtroTipoLista }
             .filter { filtroForma == null || it.formaPagamento == filtroForma }
             .filter { filtroCartaoId == null || it.cartaoId == filtroCartaoId }
             .filter {
                 busca.isBlank() ||
                     it.descricao.contains(busca, ignoreCase = true) ||
-                    it.categoria.rotulo.contains(busca, ignoreCase = true)
+                    resolverCategoria(it.categoria).nome.contains(busca, ignoreCase = true)
             }
             .let { lista ->
                 when (ordenacaoLista) {
@@ -203,7 +251,8 @@ class TransacoesViewModel(
 
     // Categorias que realmente aparecem no mês (para o filtro não listar vazio)
     val categoriasDoMes: List<Categoria>
-        get() = transacoesDoMes.map { it.categoria }.distinct().sortedBy { it.rotulo }
+        get() = transacoesDoMes.map { it.categoria }.distinct()
+            .map { resolverCategoria(it) }.sortedBy { it.rotulo }
 
     // Ids das recorrências que já viraram lançamento no mês selecionado.
     // De propósito NÃO respeita o filtro por pessoa: a conta de luz
@@ -242,13 +291,13 @@ class TransacoesViewModel(
     }
 
     // Limite zero (ou negativo) significa "remover o limite".
-    fun definirOrcamento(categoria: Categoria, limiteCentavos: Long) {
+    fun definirOrcamento(categoriaId: String, limiteCentavos: Long) {
         viewModelScope.launch {
             try {
                 if (limiteCentavos > 0) {
-                    orcamentoRepo.definir(familiaId, categoria, limiteCentavos)
+                    orcamentoRepo.definir(familiaId, categoriaId, limiteCentavos)
                 } else {
-                    orcamentoRepo.remover(familiaId, categoria)
+                    orcamentoRepo.remover(familiaId, categoriaId)
                 }
             } catch (e: Exception) {
                 erro = "Não foi possível salvar o limite: ${e.message}"
@@ -276,7 +325,7 @@ class TransacoesViewModel(
         get() = transacoesDoMes
             .filter { it.tipo == TipoTransacao.GASTO }
             .groupBy { it.categoria }
-            .map { (categoria, itens) -> categoria to itens.sumOf { it.valorCentavos } }
+            .map { (categoriaId, itens) -> resolverCategoria(categoriaId) to itens.sumOf { it.valorCentavos } }
             .sortedByDescending { it.second }
 
     // Ganhos x gastos dos últimos [quantos] meses, terminando no mês
@@ -347,7 +396,7 @@ class TransacoesViewModel(
     ) = Transacao(
         tipo = dados.tipo,
         valorCentavos = valorCentavos,
-        categoria = dados.categoria,
+        categoria = dados.categoria.id,
         descricao = descricao,
         // meio-dia local: longe das bordas de fuso, o dia
         // nunca "escorrega" para o mês vizinho
@@ -396,7 +445,7 @@ class TransacoesViewModel(
                     original.copy(
                         tipo = dados.tipo,
                         valorCentavos = dados.valorCentavos,
-                        categoria = dados.categoria,
+                        categoria = dados.categoria.id,
                         descricao = dados.descricao.trim(),
                         data = Timestamp(
                             Date.from(dados.dia.atTime(12, 0).atZone(ZoneId.systemDefault()).toInstant())

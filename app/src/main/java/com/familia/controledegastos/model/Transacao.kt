@@ -16,7 +16,9 @@ data class Transacao(
     @DocumentId val id: String = "",
     val tipo: TipoTransacao = TipoTransacao.GASTO,
     val valorCentavos: Long = 0L,
-    val categoria: Categoria = Categoria.OUTROS,
+    // Guarda o ID da categoria (o campo continua "categoria" no Firestore,
+    // então lançamentos antigos que gravavam "MERCADO" etc. seguem batendo).
+    val categoria: String = "",
     val descricao: String = "",
     val data: Timestamp = Timestamp.now(),
     val criadoPor: String = "",

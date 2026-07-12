@@ -25,6 +25,7 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Search
@@ -68,6 +69,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.familia.controledegastos.R
+import com.familia.controledegastos.model.Categoria
 import com.familia.controledegastos.model.FormaPagamento
 import com.familia.controledegastos.model.Recorrencia
 import com.familia.controledegastos.model.TipoTransacao
@@ -77,6 +79,7 @@ import com.familia.controledegastos.model.formatarCentavos
 import com.familia.controledegastos.ui.OrdenacaoLista
 import com.familia.controledegastos.ui.TransacoesViewModel
 import com.familia.controledegastos.ui.theme.VerdeGanho
+import com.familia.controledegastos.ui.theme.cor
 import com.familia.controledegastos.ui.theme.VermelhoGasto
 import java.text.SimpleDateFormat
 import java.time.LocalDate
@@ -104,6 +107,7 @@ fun TelaPrincipal(
     var mostrandoAjustes by remember { mutableStateOf(false) }
     var mostrandoPerfil by remember { mutableStateOf(false) }
     var telaCartoes by remember { mutableStateOf(false) }
+    var telaCategorias by remember { mutableStateOf(false) }
     var transacaoParaExcluir by remember { mutableStateOf<Transacao?>(null) }
     var abaSelecionada by remember { mutableStateOf(0) }
     val drawerState = rememberDrawerState(DrawerValue.Closed)
@@ -118,8 +122,11 @@ fun TelaPrincipal(
     val editando = transacaoParaEditar
     if (lancando || editando != null) {
         val prefill = recorrenciaParaLancar
+        val categoriaIdInicial = editando?.categoria ?: prefill?.categoria
         TelaNovaTransacao(
             cartoes = vm.cartoes,
+            categoriasGasto = vm.categoriasParaGasto,
+            categoriasGanho = vm.categoriasParaGanho,
             aoSalvar = { dados ->
                 if (editando != null) vm.atualizar(editando, dados) else vm.adicionar(dados)
                 lancando = false
@@ -133,7 +140,7 @@ fun TelaPrincipal(
             },
             tipoInicial = editando?.tipo ?: prefill?.tipo ?: TipoTransacao.GASTO,
             valorInicialCentavos = editando?.valorCentavos ?: prefill?.valorEsperadoCentavos ?: 0L,
-            categoriaInicial = editando?.categoria ?: prefill?.categoria,
+            categoriaInicial = categoriaIdInicial?.let { vm.resolverCategoria(it) },
             descricaoInicial = editando?.descricao ?: prefill?.descricao ?: "",
             recorrenciaId = prefill?.id ?: "",
             dataInicial = editando?.data?.toDate()?.toInstant()
@@ -149,6 +156,8 @@ fun TelaPrincipal(
     formRecorrencia?.let { recorrencia ->
         TelaNovaRecorrencia(
             recorrencia = recorrencia,
+            categoriasGasto = vm.categoriasParaGasto,
+            categoriasGanho = vm.categoriasParaGanho,
             aoSalvar = {
                 vm.salvarRecorrencia(it)
                 formRecorrencia = null
@@ -166,6 +175,17 @@ fun TelaPrincipal(
             aoSalvar = vm::salvarCartao,
             aoRemover = { vm.removerCartao(it.id) },
             aoVoltar = { telaCartoes = false },
+            modifier = modifier
+        )
+        return
+    }
+
+    if (telaCategorias) {
+        TelaCategorias(
+            categorias = vm.categorias,
+            aoSalvar = vm::salvarCategoria,
+            aoArquivar = vm::arquivarCategoria,
+            aoVoltar = { telaCategorias = false },
             modifier = modifier
         )
         return
@@ -215,11 +235,21 @@ fun TelaPrincipal(
                 )
                 NavigationDrawerItem(
                     label = { Text(text = "Meus cartões", fontSize = 16.sp) },
-                    icon = { Icon(Icons.Filled.ShoppingCart, contentDescription = null) },
+                    icon = { Icon(painter = painterResource(R.drawable.ic_cartao), contentDescription = null) },
                     selected = false,
                     onClick = {
                         escopo.launch { drawerState.close() }
                         telaCartoes = true
+                    },
+                    modifier = Modifier.padding(horizontal = 12.dp)
+                )
+                NavigationDrawerItem(
+                    label = { Text(text = "Categorias", fontSize = 16.sp) },
+                    icon = { Icon(Icons.Filled.List, contentDescription = null) },
+                    selected = false,
+                    onClick = {
+                        escopo.launch { drawerState.close() }
+                        telaCategorias = true
                     },
                     modifier = Modifier.padding(horizontal = 12.dp)
                 )
@@ -354,7 +384,8 @@ fun TelaPrincipal(
                 )
             } else if (abaSelecionada == 2) {
                 AbaOrcamento(
-                    gastosPorCategoria = vm.gastosPorCategoria.toMap(),
+                    categorias = vm.categoriasParaGasto,
+                    gastoPorCategoriaId = vm.gastosPorCategoria.associate { it.first.id to it.second },
                     orcamentos = vm.orcamentos,
                     aoDefinir = vm::definirOrcamento
                 )
@@ -362,6 +393,7 @@ fun TelaPrincipal(
                 AbaContas(
                     recorrencias = vm.recorrencias,
                     pagasNoMes = vm.recorrenciasPagasNoMes,
+                    corDaCategoria = { id -> vm.resolverCategoria(id).cor() },
                     aoLancar = { recorrencia ->
                         recorrenciaParaLancar = recorrencia
                         lancando = true
@@ -437,6 +469,7 @@ fun TelaPrincipal(
                     items(exibidas, key = { it.id }) { transacao ->
                         ItemTransacao(
                             transacao = transacao,
+                            categoria = vm.resolverCategoria(transacao.categoria),
                             // só faz sentido dizer quem lançou vendo "Todos"
                             criadorNome = if (vm.membros.size > 1 && vm.filtroUid == null) {
                                 nomes[transacao.criadoPor]
@@ -533,7 +566,7 @@ fun TelaPrincipal(
             title = { Text("Excluir lançamento?") },
             text = {
                 Text(
-                    text = "${transacao.descricao.ifBlank { transacao.categoria.rotulo }} — ${transacao.valorFormatado()}",
+                    text = "${transacao.descricao.ifBlank { vm.resolverCategoria(transacao.categoria).rotulo }} — ${transacao.valorFormatado()}",
                     fontSize = 16.sp
                 )
             },
@@ -586,13 +619,15 @@ private fun ControlesLista(vm: TransacoesViewModel) {
                 opcoes = OrdenacaoLista.entries.map { it.rotulo to { vm.definirOrdenacao(it) } }
             )
             // Filtrar por categoria (só as que aparecem no mês)
+            val nomeFiltroCategoria = vm.filtroCategoriaId
+                ?.let { vm.resolverCategoria(it).rotulo } ?: "Todas"
             MenuSuspenso(
-                texto = "Categoria: ${vm.filtroCategoria?.rotulo ?: "Todas"}",
-                selecionadoDestaque = vm.filtroCategoria != null,
+                texto = "Categoria: $nomeFiltroCategoria",
+                selecionadoDestaque = vm.filtroCategoriaId != null,
                 opcoes = buildList {
                     add("Todas" to { vm.definirFiltroCategoria(null) })
                     vm.categoriasDoMes.forEach { cat ->
-                        add(cat.rotulo to { vm.definirFiltroCategoria(cat) })
+                        add(cat.rotulo to { vm.definirFiltroCategoria(cat.id) })
                     }
                 }
             )
@@ -668,6 +703,7 @@ private fun MenuSuspenso(
 @Composable
 private fun ItemTransacao(
     transacao: Transacao,
+    categoria: Categoria,
     criadorNome: String?,
     formaTexto: String?,
     aoTocar: () -> Unit,
@@ -683,13 +719,13 @@ private fun ItemTransacao(
     ) {
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = transacao.descricao.ifBlank { transacao.categoria.rotulo },
+                text = transacao.descricao.ifBlank { categoria.rotulo },
                 fontSize = 17.sp,
                 fontWeight = FontWeight.Medium
             )
             Text(
                 text = listOfNotNull(
-                    transacao.categoria.rotulo,
+                    categoria.rotulo,
                     dataCurta(transacao),
                     criadorNome,
                     formaTexto
