@@ -16,6 +16,12 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.launch
 
+data class ResumoMensal(
+    val mes: YearMonth,
+    val ganhosCentavos: Long,
+    val gastosCentavos: Long
+)
+
 class TransacoesViewModel(
     private val familiaId: String,
     private val uid: String,
@@ -66,6 +72,27 @@ class TransacoesViewModel(
 
     val saldoCentavos: Long
         get() = totalGanhosCentavos - totalGastosCentavos
+
+    // Gastos do mês agrupados por categoria, do maior para o menor (donut).
+    val gastosPorCategoria: List<Pair<Categoria, Long>>
+        get() = transacoesDoMes
+            .filter { it.tipo == TipoTransacao.GASTO }
+            .groupBy { it.categoria }
+            .map { (categoria, itens) -> categoria to itens.sumOf { it.valorCentavos } }
+            .sortedByDescending { it.second }
+
+    // Ganhos x gastos dos últimos [quantos] meses, terminando no mês
+    // selecionado (gráfico de barras).
+    fun resumoUltimosMeses(quantos: Int = 6): List<ResumoMensal> =
+        (quantos - 1 downTo 0).map { atras ->
+            val mes = mesSelecionado.minusMonths(atras.toLong())
+            val doMes = transacoes.filter { mesDaTransacao(it) == mes }
+            ResumoMensal(
+                mes = mes,
+                ganhosCentavos = doMes.filter { it.tipo == TipoTransacao.GANHO }.sumOf { it.valorCentavos },
+                gastosCentavos = doMes.filter { it.tipo == TipoTransacao.GASTO }.sumOf { it.valorCentavos }
+            )
+        }
 
     fun mesAnterior() {
         mesSelecionado = mesSelecionado.minusMonths(1)

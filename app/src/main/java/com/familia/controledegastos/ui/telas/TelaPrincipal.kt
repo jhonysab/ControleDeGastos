@@ -25,6 +25,8 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -67,6 +69,7 @@ fun TelaPrincipal(
     var lancando by remember { mutableStateOf(false) }
     var mostrandoAjustes by remember { mutableStateOf(false) }
     var transacaoParaExcluir by remember { mutableStateOf<Transacao?>(null) }
+    var abaSelecionada by remember { mutableStateOf(0) }
 
     // Toda vez que a tela (re)aparece — inclusive num novo login —
     // garante que o ouvinte da nuvem está vivo e o erro antigo, limpo.
@@ -112,6 +115,36 @@ fun TelaPrincipal(
                 }
             }
 
+            TabRow(selectedTabIndex = abaSelecionada) {
+                Tab(
+                    selected = abaSelecionada == 0,
+                    onClick = { abaSelecionada = 0 },
+                    text = { Text(text = "Resumo", fontSize = 16.sp) }
+                )
+                Tab(
+                    selected = abaSelecionada == 1,
+                    onClick = { abaSelecionada = 1 },
+                    text = { Text(text = "Gráficos", fontSize = 16.sp) }
+                )
+            }
+
+            vm.erro?.let { mensagem ->
+                Text(
+                    text = mensagem,
+                    color = MaterialTheme.colorScheme.error,
+                    fontSize = 15.sp,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                )
+            }
+
+            if (abaSelecionada == 1) {
+                AbaGraficos(
+                    gastosPorCategoria = vm.gastosPorCategoria,
+                    resumoMeses = vm.resumoUltimosMeses()
+                )
+            } else {
+
+            Spacer(modifier = Modifier.height(12.dp))
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -141,15 +174,6 @@ fun TelaPrincipal(
                 }
             }
 
-            vm.erro?.let { mensagem ->
-                Text(
-                    text = mensagem,
-                    color = MaterialTheme.colorScheme.error,
-                    fontSize = 15.sp,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-                )
-            }
-
             if (vm.transacoesDoMes.isEmpty()) {
                 Box(modifier = Modifier
                     .fillMaxSize()
@@ -172,6 +196,7 @@ fun TelaPrincipal(
                     }
                 }
             }
+            } // fim da aba Resumo
         }
 
         ExtendedFloatingActionButton(
