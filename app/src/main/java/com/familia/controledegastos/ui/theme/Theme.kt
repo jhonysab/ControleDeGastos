@@ -21,7 +21,16 @@ private val EsquemaClaro = lightColorScheme(
     surfaceVariant = PetroleoClaro,
     onSurfaceVariant = CinzaTexto,
     tertiary = Petroleo,
-    onTertiary = Color.White
+    onTertiary = Color.White,
+    // Superfícies de cards/diálogos: sem sobrescrever, o Material 3
+    // usa um padrão arroxeado que destoa da nossa paleta.
+    surfaceContainerLowest = Color.White,
+    surfaceContainerLow = Color(0xFFF3F4EF),
+    surfaceContainer = Color(0xFFEEF0EA),
+    surfaceContainerHigh = Color(0xFFE8EBE4),
+    surfaceContainerHighest = Color(0xFFE2E6DF),
+    outline = Color(0xFF74786F),
+    outlineVariant = Color(0xFFC5CAC0)
 )
 
 @Composable

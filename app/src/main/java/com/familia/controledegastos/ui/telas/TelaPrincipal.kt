@@ -1,6 +1,7 @@
 package com.familia.controledegastos.ui.telas
 
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,6 +21,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -95,23 +97,37 @@ fun TelaPrincipal(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier
                     .fillMaxWidth()
+                    .background(MaterialTheme.colorScheme.primary)
                     .padding(horizontal = 8.dp, vertical = 4.dp)
             ) {
                 IconButton(onClick = vm::mesAnterior) {
-                    Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = "Mês anterior")
+                    Icon(
+                        Icons.AutoMirrored.Filled.KeyboardArrowLeft,
+                        contentDescription = "Mês anterior",
+                        tint = MaterialTheme.colorScheme.onPrimary
+                    )
                 }
                 Text(
                     text = nomeDoMes(vm.mesSelecionado),
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Medium,
                     textAlign = TextAlign.Center,
+                    color = MaterialTheme.colorScheme.onPrimary,
                     modifier = Modifier.weight(1f)
                 )
                 IconButton(onClick = vm::proximoMes) {
-                    Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = "Próximo mês")
+                    Icon(
+                        Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                        contentDescription = "Próximo mês",
+                        tint = MaterialTheme.colorScheme.onPrimary
+                    )
                 }
                 IconButton(onClick = { mostrandoAjustes = true }) {
-                    Icon(Icons.Filled.Settings, contentDescription = "Ajustes")
+                    Icon(
+                        Icons.Filled.Settings,
+                        contentDescription = "Ajustes",
+                        tint = MaterialTheme.colorScheme.onPrimary
+                    )
                 }
             }
 
@@ -146,6 +162,10 @@ fun TelaPrincipal(
 
             Spacer(modifier = Modifier.height(12.dp))
             Card(
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                ),
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp)
@@ -201,6 +221,8 @@ fun TelaPrincipal(
 
         ExtendedFloatingActionButton(
             onClick = { lancando = true },
+            containerColor = MaterialTheme.colorScheme.secondary,
+            contentColor = MaterialTheme.colorScheme.onSecondary,
             icon = { Icon(Icons.Filled.Add, contentDescription = null) },
             text = { Text(text = "Lançar", fontSize = 18.sp) },
             modifier = Modifier
