@@ -21,8 +21,8 @@ import com.familia.controledegastos.ui.AuthViewModel
 import com.familia.controledegastos.ui.EstadoAuth
 import com.familia.controledegastos.ui.telas.TelaCadastro
 import com.familia.controledegastos.ui.telas.TelaFamilia
-import com.familia.controledegastos.ui.telas.TelaInicial
 import com.familia.controledegastos.ui.telas.TelaLogin
+import com.familia.controledegastos.ui.telas.TelaPrincipal
 import com.familia.controledegastos.ui.theme.ControleDeGastosTheme
 
 class MainActivity : ComponentActivity() {
@@ -89,7 +89,7 @@ fun App(modifier: Modifier = Modifier, vm: AuthViewModel = viewModel()) {
         }
 
         is EstadoAuth.Pronto -> {
-            TelaInicial(
+            TelaPrincipal(
                 usuario = estado.usuario,
                 aoSair = vm::sair,
                 modifier = modifier

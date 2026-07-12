@@ -21,9 +21,11 @@ data class Transacao(
     val data: Timestamp = Timestamp.now(),
     val criadoPor: String = ""
 ) {
-    // Dinheiro é guardado em centavos (inteiro, matemática exata);
-    // a vírgula só existe na hora de mostrar na tela.
-    fun valorFormatado(): String =
-        NumberFormat.getCurrencyInstance(Locale.forLanguageTag("pt-BR"))
-            .format(valorCentavos / 100.0)
+    fun valorFormatado(): String = formatarCentavos(valorCentavos)
 }
+
+// Dinheiro é guardado em centavos (inteiro, matemática exata);
+// a vírgula só existe na hora de mostrar na tela.
+fun formatarCentavos(centavos: Long): String =
+    NumberFormat.getCurrencyInstance(Locale.forLanguageTag("pt-BR"))
+        .format(centavos / 100.0)
