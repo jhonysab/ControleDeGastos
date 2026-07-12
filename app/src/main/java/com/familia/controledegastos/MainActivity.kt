@@ -11,6 +11,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -79,21 +80,26 @@ fun App(modifier: Modifier = Modifier, vm: AuthViewModel = viewModel()) {
         }
 
         is EstadoAuth.SemFamilia -> {
-            TelaFamilia(
-                processando = vm.processando,
-                erro = vm.erro,
-                aoCriarFamilia = vm::criarFamilia,
-                aoEntrarNaFamilia = vm::entrarNaFamilia,
-                modifier = modifier
-            )
+            key(estado.usuario.id) {
+                TelaFamilia(
+                    processando = vm.processando,
+                    erro = vm.erro,
+                    aoCriarFamilia = vm::criarFamilia,
+                    aoEntrarNaFamilia = vm::entrarNaFamilia,
+                    modifier = modifier
+                )
+            }
         }
 
         is EstadoAuth.Pronto -> {
-            TelaPrincipal(
-                usuario = estado.usuario,
-                aoSair = vm::sair,
-                modifier = modifier
-            )
+            key(estado.usuario.id) {
+                TelaPrincipal(
+                    usuario = estado.usuario,
+                    aoSair = vm::sair,
+                    modifier = modifier
+                )
+            }
         }
     }
 }
+

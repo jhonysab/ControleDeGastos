@@ -28,6 +28,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -58,14 +59,20 @@ fun TelaPrincipal(
     usuario: Usuario,
     aoSair: () -> Unit,
     modifier: Modifier = Modifier,
-    // key: se trocar de conta/família, o ViewModel antigo é descartado
-    vm: TransacoesViewModel = viewModel(key = "transacoes-${usuario.familiaId}") {
+    // key: se trocar de usuário ou de família, o ViewModel antigo é descartado
+    vm: TransacoesViewModel = viewModel(key = "transacoes-${usuario.id}-${usuario.familiaId}") {
         TransacoesViewModel(familiaId = usuario.familiaId, uid = usuario.id)
     }
 ) {
     var lancando by remember { mutableStateOf(false) }
     var mostrandoAjustes by remember { mutableStateOf(false) }
     var transacaoParaExcluir by remember { mutableStateOf<Transacao?>(null) }
+
+    // Toda vez que a tela (re)aparece — inclusive num novo login —
+    // garante que o ouvinte da nuvem está vivo e o erro antigo, limpo.
+    LaunchedEffect(Unit) {
+        vm.iniciarEscuta()
+    }
 
     if (lancando) {
         TelaNovaTransacao(
@@ -202,7 +209,12 @@ fun TelaPrincipal(
                 TextButton(onClick = { mostrandoAjustes = false }) { Text("Fechar") }
             },
             dismissButton = {
-                TextButton(onClick = aoSair) { Text("Sair da conta") }
+                TextButton(onClick = {
+                    // desliga o ouvinte ANTES do logout, senão o servidor
+                    // recusa o listener órfão com PERMISSION_DENIED
+                    vm.pararEscuta()
+                    aoSair()
+                }) { Text("Sair da conta") }
             }
         )
     }

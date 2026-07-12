@@ -12,6 +12,7 @@ import com.familia.controledegastos.model.Transacao
 import com.google.firebase.Timestamp
 import java.time.YearMonth
 import java.time.ZoneId
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.launch
 
@@ -28,14 +29,30 @@ class TransacoesViewModel(
     var erro by mutableStateOf<String?>(null)
         private set
 
+    private var escuta: Job? = null
+
     init {
-        // Escuta a nuvem a vida toda da tela: qualquer mudança
-        // (deste celular ou do outro) atualiza a lista sozinha.
-        viewModelScope.launch {
+        iniciarEscuta()
+    }
+
+    // Liga (ou religa) o ouvido na nuvem: qualquer mudança no banco
+    // (deste celular ou do outro) atualiza a lista sozinha.
+    // Um listener que recebe erro morre — por isso precisa ser religável.
+    fun iniciarEscuta() {
+        if (escuta?.isActive == true) return
+        erro = null
+        escuta = viewModelScope.launch {
             repo.observarTransacoes(familiaId)
                 .catch { erro = "Não foi possível carregar: ${it.message}" }
                 .collect { transacoes = it }
         }
+    }
+
+    // Desliga o ouvido ANTES do logout — um listener ativo sem login
+    // é recusado pelo servidor (PERMISSION_DENIED).
+    fun pararEscuta() {
+        escuta?.cancel()
+        escuta = null
     }
 
     val transacoesDoMes: List<Transacao>
