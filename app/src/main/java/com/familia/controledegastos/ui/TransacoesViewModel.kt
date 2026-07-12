@@ -5,6 +5,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.familia.controledegastos.data.OrcamentoRepository
 import com.familia.controledegastos.data.TransacaoRepository
 import com.familia.controledegastos.model.Categoria
 import com.familia.controledegastos.model.TipoTransacao
@@ -27,40 +28,63 @@ data class ResumoMensal(
 class TransacoesViewModel(
     private val familiaId: String,
     private val uid: String,
-    private val repo: TransacaoRepository = TransacaoRepository()
+    private val repo: TransacaoRepository = TransacaoRepository(),
+    private val orcamentoRepo: OrcamentoRepository = OrcamentoRepository()
 ) : ViewModel() {
 
     var transacoes by mutableStateOf<List<Transacao>>(emptyList())
+        private set
+    var orcamentos by mutableStateOf<Map<Categoria, Long>>(emptyMap())
         private set
     var mesSelecionado by mutableStateOf(YearMonth.now())
         private set
     var erro by mutableStateOf<String?>(null)
         private set
 
-    private var escuta: Job? = null
+    private val escutas = mutableListOf<Job>()
 
     init {
         iniciarEscuta()
     }
 
-    // Liga (ou religa) o ouvido na nuvem: qualquer mudança no banco
-    // (deste celular ou do outro) atualiza a lista sozinha.
+    // Liga (ou religa) os ouvidos na nuvem: qualquer mudança no banco
+    // (deste celular ou do outro) atualiza a tela sozinha.
     // Um listener que recebe erro morre — por isso precisa ser religável.
     fun iniciarEscuta() {
-        if (escuta?.isActive == true) return
+        if (escutas.any { it.isActive }) return
         erro = null
-        escuta = viewModelScope.launch {
+        escutas += viewModelScope.launch {
             repo.observarTransacoes(familiaId)
                 .catch { erro = "Não foi possível carregar: ${it.message}" }
                 .collect { transacoes = it }
         }
+        escutas += viewModelScope.launch {
+            orcamentoRepo.observarOrcamentos(familiaId)
+                .catch { erro = "Não foi possível carregar os limites: ${it.message}" }
+                .collect { orcamentos = it }
+        }
     }
 
-    // Desliga o ouvido ANTES do logout — um listener ativo sem login
+    // Desliga os ouvidos ANTES do logout — um listener ativo sem login
     // é recusado pelo servidor (PERMISSION_DENIED).
     fun pararEscuta() {
-        escuta?.cancel()
-        escuta = null
+        escutas.forEach { it.cancel() }
+        escutas.clear()
+    }
+
+    // Limite zero (ou negativo) significa "remover o limite".
+    fun definirOrcamento(categoria: Categoria, limiteCentavos: Long) {
+        viewModelScope.launch {
+            try {
+                if (limiteCentavos > 0) {
+                    orcamentoRepo.definir(familiaId, categoria, limiteCentavos)
+                } else {
+                    orcamentoRepo.remover(familiaId, categoria)
+                }
+            } catch (e: Exception) {
+                erro = "Não foi possível salvar o limite: ${e.message}"
+            }
+        }
     }
 
     val transacoesDoMes: List<Transacao>

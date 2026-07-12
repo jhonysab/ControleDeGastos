@@ -44,6 +44,14 @@ service cloud.firestore {
           && request.resource.data.valorCentavos is int
           && request.resource.data.valorCentavos > 0;
       }
+
+      // Orçamentos: limite mensal por categoria (id do doc = categoria).
+      match /orcamentos/{categoria} {
+        allow read, delete: if ehMembro(database, familiaId);
+        allow create, update: if ehMembro(database, familiaId)
+          && request.resource.data.limiteCentavos is int
+          && request.resource.data.limiteCentavos > 0;
+      }
     }
 
     function ehMembro(database, familiaId) {

@@ -142,6 +142,11 @@ fun TelaPrincipal(
                     onClick = { abaSelecionada = 1 },
                     text = { Text(text = "Gráficos", fontSize = 16.sp) }
                 )
+                Tab(
+                    selected = abaSelecionada == 2,
+                    onClick = { abaSelecionada = 2 },
+                    text = { Text(text = "Limites", fontSize = 16.sp) }
+                )
             }
 
             vm.erro?.let { mensagem ->
@@ -157,6 +162,12 @@ fun TelaPrincipal(
                 AbaGraficos(
                     gastosPorCategoria = vm.gastosPorCategoria,
                     resumoMeses = vm.resumoUltimosMeses()
+                )
+            } else if (abaSelecionada == 2) {
+                AbaOrcamento(
+                    gastosPorCategoria = vm.gastosPorCategoria.toMap(),
+                    orcamentos = vm.orcamentos,
+                    aoDefinir = vm::definirOrcamento
                 )
             } else {
 

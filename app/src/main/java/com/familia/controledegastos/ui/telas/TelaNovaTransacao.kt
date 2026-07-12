@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DateRange
@@ -38,15 +37,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.familia.controledegastos.model.Categoria
 import com.familia.controledegastos.model.TipoTransacao
-import com.familia.controledegastos.model.formatarCentavos
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
@@ -60,7 +55,6 @@ fun TelaNovaTransacao(
     modifier: Modifier = Modifier
 ) {
     var tipo by remember { mutableStateOf(TipoTransacao.GASTO) }
-    var valorCampo by remember { mutableStateOf(TextFieldValue("")) }
     var valorCentavos by remember { mutableLongStateOf(0L) }
     var categoria by remember { mutableStateOf<Categoria?>(null) }
     var descricao by remember { mutableStateOf("") }
@@ -110,21 +104,9 @@ fun TelaNovaTransacao(
         }
         Spacer(modifier = Modifier.height(24.dp))
 
-        // A pessoa digita só números e o campo se formata sozinho:
-        // 8 -> R$ 0,08; 89 -> R$ 0,89; 8990 -> R$ 89,90 (estilo app de banco)
-        OutlinedTextField(
-            value = valorCampo,
-            onValueChange = { novo ->
-                val digitos = novo.text.filter { it.isDigit() }.take(10)
-                valorCentavos = digitos.toLongOrNull() ?: 0L
-                val texto = if (digitos.isEmpty()) "" else formatarCentavos(valorCentavos)
-                valorCampo = TextFieldValue(text = texto, selection = TextRange(texto.length))
-            },
-            label = { Text("Valor") },
-            placeholder = { Text("R$ 0,00") },
-            singleLine = true,
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-            textStyle = androidx.compose.ui.text.TextStyle(fontSize = 24.sp),
+        CampoValorMonetario(
+            valorInicialCentavos = 0L,
+            aoMudar = { valorCentavos = it },
             modifier = Modifier.fillMaxWidth()
         )
         Spacer(modifier = Modifier.height(24.dp))
