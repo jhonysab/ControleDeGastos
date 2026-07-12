@@ -10,12 +10,21 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material3.Button
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Icon
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
@@ -38,11 +47,15 @@ import androidx.compose.ui.unit.sp
 import com.familia.controledegastos.model.Categoria
 import com.familia.controledegastos.model.TipoTransacao
 import com.familia.controledegastos.model.formatarCentavos
+import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneOffset
+import java.time.format.DateTimeFormatter
 
-@OptIn(ExperimentalLayoutApi::class)
+@OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun TelaNovaTransacao(
-    aoSalvar: (TipoTransacao, Long, Categoria, String) -> Unit,
+    aoSalvar: (TipoTransacao, Long, Categoria, String, LocalDate) -> Unit,
     aoCancelar: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -51,6 +64,8 @@ fun TelaNovaTransacao(
     var valorCentavos by remember { mutableLongStateOf(0L) }
     var categoria by remember { mutableStateOf<Categoria?>(null) }
     var descricao by remember { mutableStateOf("") }
+    var dataSelecionada by remember { mutableStateOf(LocalDate.now()) }
+    var mostrandoCalendario by remember { mutableStateOf(false) }
 
     BackHandler(onBack = aoCancelar)
 
@@ -126,6 +141,27 @@ fun TelaNovaTransacao(
         }
         Spacer(modifier = Modifier.height(24.dp))
 
+        // Data do lançamento: hoje por padrão, mas dá pra registrar
+        // aquela conta paga semana passada.
+        OutlinedButton(
+            onClick = { mostrandoCalendario = true },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(56.dp)
+        ) {
+            Icon(Icons.Filled.DateRange, contentDescription = null)
+            Spacer(modifier = Modifier.width(10.dp))
+            Text(
+                text = if (dataSelecionada == LocalDate.now()) {
+                    "Hoje, ${dataSelecionada.format(FORMATO_DATA)}"
+                } else {
+                    dataSelecionada.format(FORMATO_DATA)
+                },
+                fontSize = 17.sp
+            )
+        }
+        Spacer(modifier = Modifier.height(24.dp))
+
         OutlinedTextField(
             value = descricao,
             onValueChange = { descricao = it },
@@ -136,7 +172,7 @@ fun TelaNovaTransacao(
         Spacer(modifier = Modifier.height(32.dp))
 
         Button(
-            onClick = { aoSalvar(tipo, valorCentavos, categoria!!, descricao) },
+            onClick = { aoSalvar(tipo, valorCentavos, categoria!!, descricao, dataSelecionada) },
             enabled = valorCentavos > 0 && categoria != null,
             modifier = Modifier
                 .fillMaxWidth()
@@ -151,4 +187,33 @@ fun TelaNovaTransacao(
             Text(text = "Cancelar", fontSize = 16.sp)
         }
     }
+
+    if (mostrandoCalendario) {
+        // O DatePicker trabalha em milissegundos UTC; a conversão
+        // de ida e volta precisa usar o MESMO fuso (UTC) para o dia
+        // não escorregar.
+        val estadoCalendario = rememberDatePickerState(
+            initialSelectedDateMillis = dataSelecionada
+                .atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
+        )
+        DatePickerDialog(
+            onDismissRequest = { mostrandoCalendario = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    estadoCalendario.selectedDateMillis?.let { millis ->
+                        dataSelecionada = Instant.ofEpochMilli(millis)
+                            .atZone(ZoneOffset.UTC).toLocalDate()
+                    }
+                    mostrandoCalendario = false
+                }) { Text("OK") }
+            },
+            dismissButton = {
+                TextButton(onClick = { mostrandoCalendario = false }) { Text("Cancelar") }
+            }
+        ) {
+            DatePicker(state = estadoCalendario)
+        }
+    }
 }
+
+private val FORMATO_DATA: DateTimeFormatter = DateTimeFormatter.ofPattern("dd/MM/yyyy")

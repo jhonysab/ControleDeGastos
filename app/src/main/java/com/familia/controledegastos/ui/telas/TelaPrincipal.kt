@@ -81,8 +81,8 @@ fun TelaPrincipal(
 
     if (lancando) {
         TelaNovaTransacao(
-            aoSalvar = { tipo, valorCentavos, categoria, descricao ->
-                vm.adicionar(tipo, valorCentavos, categoria, descricao)
+            aoSalvar = { tipo, valorCentavos, categoria, descricao, dia ->
+                vm.adicionar(tipo, valorCentavos, categoria, descricao, dia)
                 lancando = false
             },
             aoCancelar = { lancando = false },

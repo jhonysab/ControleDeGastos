@@ -10,8 +10,10 @@ import com.familia.controledegastos.model.Categoria
 import com.familia.controledegastos.model.TipoTransacao
 import com.familia.controledegastos.model.Transacao
 import com.google.firebase.Timestamp
+import java.time.LocalDate
 import java.time.YearMonth
 import java.time.ZoneId
+import java.util.Date
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.launch
@@ -102,7 +104,13 @@ class TransacoesViewModel(
         mesSelecionado = mesSelecionado.plusMonths(1)
     }
 
-    fun adicionar(tipo: TipoTransacao, valorCentavos: Long, categoria: Categoria, descricao: String) {
+    fun adicionar(
+        tipo: TipoTransacao,
+        valorCentavos: Long,
+        categoria: Categoria,
+        descricao: String,
+        dia: LocalDate
+    ) {
         viewModelScope.launch {
             try {
                 repo.adicionar(
@@ -112,7 +120,11 @@ class TransacoesViewModel(
                         valorCentavos = valorCentavos,
                         categoria = categoria,
                         descricao = descricao.trim(),
-                        data = Timestamp.now(),
+                        // meio-dia local: longe das bordas de fuso, o dia
+                        // nunca "escorrega" para o mês vizinho
+                        data = Timestamp(
+                            Date.from(dia.atTime(12, 0).atZone(ZoneId.systemDefault()).toInstant())
+                        ),
                         criadoPor = uid
                     )
                 )

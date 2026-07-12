@@ -46,9 +46,10 @@ fun TelaLogin(
         verticalArrangement = Arrangement.Center
     ) {
         Text(
-            text = "Controle de Gastos",
+            text = "Unicka Finanças",
             fontSize = 28.sp,
             fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.primary,
             modifier = Modifier.align(Alignment.CenterHorizontally)
         )
         Text(
