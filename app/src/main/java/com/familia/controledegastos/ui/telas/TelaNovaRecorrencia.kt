@@ -112,7 +112,15 @@ fun TelaNovaRecorrencia(
         OutlinedTextField(
             value = descricao,
             onValueChange = { descricao = it },
-            label = { Text("Nome da conta (ex: Conta de luz)") },
+            label = {
+                Text(
+                    if (tipo == TipoTransacao.GASTO) {
+                        "Nome da conta (ex: Conta de luz)"
+                    } else {
+                        "Nome da renda (ex: Salário)"
+                    }
+                )
+            },
             singleLine = true,
             modifier = Modifier.fillMaxWidth()
         )

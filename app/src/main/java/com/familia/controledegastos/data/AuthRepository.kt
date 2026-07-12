@@ -37,6 +37,13 @@ class AuthRepository(
         db.collection("usuarios").document(uid).get().await()
             .toObject(Usuario::class.java)
 
+    // Todos os perfis da família — usado no filtro "quem gastou o quê".
+    suspend fun carregarMembros(familiaId: String): List<Usuario> =
+        db.collection("usuarios")
+            .whereEqualTo("familiaId", familiaId)
+            .get().await()
+            .toObjects(Usuario::class.java)
+
     suspend fun criarFamilia(nomeFamilia: String, uid: String): String {
         val ref = db.collection("familias")
             .add(Familia(nome = nomeFamilia, membros = listOf(uid)))

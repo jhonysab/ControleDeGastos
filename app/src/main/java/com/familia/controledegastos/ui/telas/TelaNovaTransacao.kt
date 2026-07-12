@@ -153,7 +153,15 @@ fun TelaNovaTransacao(
         OutlinedTextField(
             value = descricao,
             onValueChange = { descricao = it },
-            label = { Text("Descrição (opcional, ex: conta de luz)") },
+            label = {
+                Text(
+                    if (tipo == TipoTransacao.GASTO) {
+                        "Descrição (opcional, ex: conta de luz)"
+                    } else {
+                        "Descrição (opcional, ex: salário, venda)"
+                    }
+                )
+            },
             singleLine = true,
             modifier = Modifier.fillMaxWidth()
         )

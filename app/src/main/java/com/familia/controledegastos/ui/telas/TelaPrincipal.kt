@@ -3,6 +3,7 @@ package com.familia.controledegastos.ui.telas
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -23,6 +24,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -180,6 +182,29 @@ fun TelaPrincipal(
                 )
             }
 
+            // Filtro por pessoa (some na aba Contas: o status lá é da família)
+            if (vm.membros.size > 1 && abaSelecionada != 3) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 4.dp)
+                ) {
+                    FilterChip(
+                        selected = vm.filtroUid == null,
+                        onClick = { vm.definirFiltro(null) },
+                        label = { Text(text = "Todos", fontSize = 15.sp) }
+                    )
+                    vm.membros.forEach { membro ->
+                        FilterChip(
+                            selected = vm.filtroUid == membro.id,
+                            onClick = { vm.definirFiltro(membro.id) },
+                            label = { Text(text = membro.nome, fontSize = 15.sp) }
+                        )
+                    }
+                }
+            }
+
             vm.erro?.let { mensagem ->
                 Text(
                     text = mensagem,
@@ -260,10 +285,15 @@ fun TelaPrincipal(
                     )
                 }
             } else {
+                val nomes = vm.membros.associate { it.id to it.nome }
                 LazyColumn(modifier = Modifier.fillMaxSize()) {
                     items(vm.transacoesDoMes, key = { it.id }) { transacao ->
                         ItemTransacao(
                             transacao = transacao,
+                            // só faz sentido dizer quem lançou vendo "Todos"
+                            criadorNome = if (vm.membros.size > 1 && vm.filtroUid == null) {
+                                nomes[transacao.criadoPor]
+                            } else null,
                             aoSegurar = { transacaoParaExcluir = transacao }
                         )
                         HorizontalDivider(thickness = 0.5.dp)
@@ -347,6 +377,7 @@ fun TelaPrincipal(
 @Composable
 private fun ItemTransacao(
     transacao: Transacao,
+    criadorNome: String?,
     aoSegurar: () -> Unit
 ) {
     val ehGasto = transacao.tipo == TipoTransacao.GASTO
@@ -364,7 +395,11 @@ private fun ItemTransacao(
                 fontWeight = FontWeight.Medium
             )
             Text(
-                text = "${transacao.categoria.rotulo} • ${dataCurta(transacao)}",
+                text = listOfNotNull(
+                    transacao.categoria.rotulo,
+                    dataCurta(transacao),
+                    criadorNome
+                ).joinToString(" • "),
                 fontSize = 14.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )

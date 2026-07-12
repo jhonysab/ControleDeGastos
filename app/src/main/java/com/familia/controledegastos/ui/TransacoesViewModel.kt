@@ -5,11 +5,13 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.familia.controledegastos.data.AuthRepository
 import com.familia.controledegastos.data.OrcamentoRepository
 import com.familia.controledegastos.data.RecorrenciaRepository
 import com.familia.controledegastos.data.TransacaoRepository
 import com.familia.controledegastos.model.Categoria
 import com.familia.controledegastos.model.Recorrencia
+import com.familia.controledegastos.model.Usuario
 import com.familia.controledegastos.model.TipoTransacao
 import com.familia.controledegastos.model.Transacao
 import com.google.firebase.Timestamp
@@ -32,7 +34,8 @@ class TransacoesViewModel(
     private val uid: String,
     private val repo: TransacaoRepository = TransacaoRepository(),
     private val orcamentoRepo: OrcamentoRepository = OrcamentoRepository(),
-    private val recorrenciaRepo: RecorrenciaRepository = RecorrenciaRepository()
+    private val recorrenciaRepo: RecorrenciaRepository = RecorrenciaRepository(),
+    private val authRepo: AuthRepository = AuthRepository()
 ) : ViewModel() {
 
     var transacoes by mutableStateOf<List<Transacao>>(emptyList())
@@ -40,6 +43,12 @@ class TransacoesViewModel(
     var orcamentos by mutableStateOf<Map<Categoria, Long>>(emptyMap())
         private set
     var recorrencias by mutableStateOf<List<Recorrencia>>(emptyList())
+        private set
+    var membros by mutableStateOf<List<Usuario>>(emptyList())
+        private set
+
+    // null = família toda; uid = só o que aquela pessoa lançou
+    var filtroUid by mutableStateOf<String?>(null)
         private set
     var mesSelecionado by mutableStateOf(YearMonth.now())
         private set
@@ -73,11 +82,24 @@ class TransacoesViewModel(
                 .catch { erro = "Não foi possível carregar as contas: ${it.message}" }
                 .collect { recorrencias = it }
         }
+        viewModelScope.launch {
+            // nomes mudam raramente: uma busca por sessão basta
+            runCatching { membros = authRepo.carregarMembros(familiaId) }
+        }
+    }
+
+    fun definirFiltro(uid: String?) {
+        filtroUid = uid
     }
 
     // Ids das recorrências que já viraram lançamento no mês selecionado.
+    // De propósito NÃO respeita o filtro por pessoa: a conta de luz
+    // está paga, não importa quem pagou.
     val recorrenciasPagasNoMes: Set<String>
-        get() = transacoesDoMes.mapNotNull { it.recorrenciaId.ifBlank { null } }.toSet()
+        get() = transacoes
+            .filter { mesDaTransacao(it) == mesSelecionado }
+            .mapNotNull { it.recorrenciaId.ifBlank { null } }
+            .toSet()
 
     fun salvarRecorrencia(recorrencia: Recorrencia) {
         viewModelScope.launch {
@@ -122,7 +144,10 @@ class TransacoesViewModel(
     }
 
     val transacoesDoMes: List<Transacao>
-        get() = transacoes.filter { mesDaTransacao(it) == mesSelecionado }
+        get() = transacoes.filter {
+            mesDaTransacao(it) == mesSelecionado &&
+                (filtroUid == null || it.criadoPor == filtroUid)
+        }
 
     val totalGanhosCentavos: Long
         get() = transacoesDoMes.filter { it.tipo == TipoTransacao.GANHO }.sumOf { it.valorCentavos }
@@ -146,7 +171,10 @@ class TransacoesViewModel(
     fun resumoUltimosMeses(quantos: Int = 6): List<ResumoMensal> =
         (quantos - 1 downTo 0).map { atras ->
             val mes = mesSelecionado.minusMonths(atras.toLong())
-            val doMes = transacoes.filter { mesDaTransacao(it) == mes }
+            val doMes = transacoes.filter {
+                mesDaTransacao(it) == mes &&
+                    (filtroUid == null || it.criadoPor == filtroUid)
+            }
             ResumoMensal(
                 mes = mes,
                 ganhosCentavos = doMes.filter { it.tipo == TipoTransacao.GANHO }.sumOf { it.valorCentavos },
