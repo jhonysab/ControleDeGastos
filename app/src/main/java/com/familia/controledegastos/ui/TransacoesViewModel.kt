@@ -260,6 +260,31 @@ class TransacoesViewModel(
         }
     }
 
+    // Edição: preserva quem criou e o vínculo com a recorrência,
+    // troca só o que a tela permite mudar.
+    fun atualizar(original: Transacao, dados: DadosLancamento) {
+        viewModelScope.launch {
+            try {
+                repo.atualizar(
+                    familiaId,
+                    original.copy(
+                        tipo = dados.tipo,
+                        valorCentavos = dados.valorCentavos,
+                        categoria = dados.categoria,
+                        descricao = dados.descricao.trim(),
+                        data = Timestamp(
+                            Date.from(dados.dia.atTime(12, 0).atZone(ZoneId.systemDefault()).toInstant())
+                        ),
+                        formaPagamento = dados.formaPagamento,
+                        cartaoId = dados.cartaoId
+                    )
+                )
+            } catch (e: Exception) {
+                erro = "Não foi possível salvar a alteração: ${e.message}"
+            }
+        }
+    }
+
     fun remover(transacaoId: String) {
         viewModelScope.launch {
             try {

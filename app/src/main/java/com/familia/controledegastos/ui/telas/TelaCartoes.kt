@@ -2,7 +2,9 @@ package com.familia.controledegastos.ui.telas
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -10,11 +12,17 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Card
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -56,7 +64,12 @@ fun TelaCartoes(
             .verticalScroll(rememberScrollState())
             .padding(24.dp)
     ) {
-        Text(text = "Meus cartões", fontSize = 26.sp, fontWeight = FontWeight.Bold)
+        Text(
+            text = "Meus cartões",
+            fontSize = 26.sp,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.primary
+        )
         Text(
             text = "Os cartões aparecem na hora de lançar um gasto no crédito.",
             fontSize = 15.sp,
@@ -75,26 +88,44 @@ fun TelaCartoes(
         }
 
         cartoes.forEach { cartao ->
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .combinedClickable(
-                        onClick = { editando = cartao },
-                        onLongClick = { paraExcluir = cartao }
-                    )
-                    .padding(vertical = 12.dp)
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(text = cartao.nome, fontSize = 17.sp, fontWeight = FontWeight.Medium)
-                    Text(
-                        text = "Fatura vence dia ${cartao.diaVencimento}",
-                        fontSize = 14.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .combinedClickable(
+                            onClick = { editando = cartao },
+                            onLongClick = { paraExcluir = cartao }
+                        )
+                        .padding(16.dp)
+                ) {
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier
+                            .size(42.dp)
+                            .background(
+                                color = MaterialTheme.colorScheme.primaryContainer,
+                                shape = CircleShape
+                            )
+                    ) {
+                        Icon(
+                            Icons.Filled.ShoppingCart,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(14.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(text = cartao.nome, fontSize = 17.sp, fontWeight = FontWeight.Medium)
+                        Text(
+                            text = "Fatura vence dia ${cartao.diaVencimento}",
+                            fontSize = 14.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
             }
-            HorizontalDivider(thickness = 0.5.dp)
+            Spacer(modifier = Modifier.height(10.dp))
         }
 
         Spacer(modifier = Modifier.height(20.dp))

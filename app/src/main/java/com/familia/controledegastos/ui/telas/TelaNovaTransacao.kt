@@ -21,6 +21,7 @@ import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.rememberDatePickerState
@@ -62,16 +63,20 @@ fun TelaNovaTransacao(
     valorInicialCentavos: Long = 0L,
     categoriaInicial: Categoria? = null,
     descricaoInicial: String = "",
-    recorrenciaId: String = ""
+    recorrenciaId: String = "",
+    dataInicial: LocalDate = LocalDate.now(),
+    formaPagamentoInicial: FormaPagamento = FormaPagamento.DINHEIRO,
+    cartaoIdInicial: String = "",
+    editando: Boolean = false
 ) {
     var tipo by remember { mutableStateOf(tipoInicial) }
     var valorCentavos by remember { mutableLongStateOf(valorInicialCentavos) }
     var categoria by remember { mutableStateOf(categoriaInicial) }
     var descricao by remember { mutableStateOf(descricaoInicial) }
-    var dataSelecionada by remember { mutableStateOf(LocalDate.now()) }
+    var dataSelecionada by remember { mutableStateOf(dataInicial) }
     var mostrandoCalendario by remember { mutableStateOf(false) }
-    var formaPagamento by remember { mutableStateOf(FormaPagamento.DINHEIRO) }
-    var cartaoId by remember { mutableStateOf("") }
+    var formaPagamento by remember { mutableStateOf(formaPagamentoInicial) }
+    var cartaoId by remember { mutableStateOf(cartaoIdInicial) }
 
     BackHandler(onBack = aoCancelar)
 
@@ -87,7 +92,12 @@ fun TelaNovaTransacao(
             .verticalScroll(rememberScrollState())
             .padding(24.dp)
     ) {
-        Text(text = "Novo lançamento", fontSize = 26.sp, fontWeight = FontWeight.Bold)
+        Text(
+            text = if (editando) "Editar lançamento" else "Novo lançamento",
+            fontSize = 26.sp,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.primary
+        )
         Spacer(modifier = Modifier.height(24.dp))
 
         SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
@@ -123,7 +133,7 @@ fun TelaNovaTransacao(
         )
         Spacer(modifier = Modifier.height(24.dp))
 
-        Text(text = "Categoria", fontSize = 16.sp)
+        RotuloSecao(texto = "Categoria")
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             categoriasVisiveis.forEach { c ->
                 FilterChip(
@@ -156,9 +166,8 @@ fun TelaNovaTransacao(
         }
         Spacer(modifier = Modifier.height(24.dp))
 
-        Text(
-            text = if (tipo == TipoTransacao.GASTO) "Forma de pagamento" else "Como recebeu?",
-            fontSize = 16.sp
+        RotuloSecao(
+            texto = if (tipo == TipoTransacao.GASTO) "Forma de pagamento" else "Como recebeu?"
         )
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             FormaPagamento.entries.forEach { forma ->
@@ -175,7 +184,7 @@ fun TelaNovaTransacao(
 
         if (formaPagamento == FormaPagamento.CREDITO) {
             Spacer(modifier = Modifier.height(12.dp))
-            Text(text = "Qual cartão?", fontSize = 16.sp)
+            RotuloSecao(texto = "Qual cartão?")
             if (cartoes.isEmpty()) {
                 Text(
                     text = "Nenhum cartão cadastrado ainda — cadastre no menu ☰ → Meus cartões.",
@@ -275,3 +284,15 @@ fun TelaNovaTransacao(
 }
 
 private val FORMATO_DATA: DateTimeFormatter = DateTimeFormatter.ofPattern("dd/MM/yyyy")
+
+// Título de seção dos formulários: pequeno destaque na cor da marca.
+@Composable
+internal fun RotuloSecao(texto: String) {
+    Text(
+        text = texto,
+        fontSize = 15.sp,
+        fontWeight = FontWeight.Medium,
+        color = MaterialTheme.colorScheme.primary
+    )
+    Spacer(modifier = Modifier.height(4.dp))
+}

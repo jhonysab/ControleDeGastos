@@ -69,6 +69,8 @@ import com.familia.controledegastos.ui.TransacoesViewModel
 import com.familia.controledegastos.ui.theme.VerdeGanho
 import com.familia.controledegastos.ui.theme.VermelhoGasto
 import java.text.SimpleDateFormat
+import java.time.LocalDate
+import java.time.ZoneId
 import java.time.YearMonth
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -87,6 +89,7 @@ fun TelaPrincipal(
 ) {
     var lancando by remember { mutableStateOf(false) }
     var recorrenciaParaLancar by remember { mutableStateOf<Recorrencia?>(null) }
+    var transacaoParaEditar by remember { mutableStateOf<Transacao?>(null) }
     var formRecorrencia by remember { mutableStateOf<Recorrencia?>(null) }
     var mostrandoAjustes by remember { mutableStateOf(false) }
     var mostrandoPerfil by remember { mutableStateOf(false) }
@@ -102,24 +105,32 @@ fun TelaPrincipal(
         vm.iniciarEscuta()
     }
 
-    if (lancando) {
+    val editando = transacaoParaEditar
+    if (lancando || editando != null) {
         val prefill = recorrenciaParaLancar
         TelaNovaTransacao(
             cartoes = vm.cartoes,
             aoSalvar = { dados ->
-                vm.adicionar(dados)
+                if (editando != null) vm.atualizar(editando, dados) else vm.adicionar(dados)
                 lancando = false
                 recorrenciaParaLancar = null
+                transacaoParaEditar = null
             },
             aoCancelar = {
                 lancando = false
                 recorrenciaParaLancar = null
+                transacaoParaEditar = null
             },
-            tipoInicial = prefill?.tipo ?: TipoTransacao.GASTO,
-            valorInicialCentavos = prefill?.valorEsperadoCentavos ?: 0L,
-            categoriaInicial = prefill?.categoria,
-            descricaoInicial = prefill?.descricao ?: "",
+            tipoInicial = editando?.tipo ?: prefill?.tipo ?: TipoTransacao.GASTO,
+            valorInicialCentavos = editando?.valorCentavos ?: prefill?.valorEsperadoCentavos ?: 0L,
+            categoriaInicial = editando?.categoria ?: prefill?.categoria,
+            descricaoInicial = editando?.descricao ?: prefill?.descricao ?: "",
             recorrenciaId = prefill?.id ?: "",
+            dataInicial = editando?.data?.toDate()?.toInstant()
+                ?.atZone(ZoneId.systemDefault())?.toLocalDate() ?: LocalDate.now(),
+            formaPagamentoInicial = editando?.formaPagamento ?: FormaPagamento.DINHEIRO,
+            cartaoIdInicial = editando?.cartaoId ?: "",
+            editando = editando != null,
             modifier = modifier
         )
         return
@@ -403,6 +414,7 @@ fun TelaPrincipal(
                             } else {
                                 transacao.formaPagamento.rotulo
                             },
+                            aoTocar = { transacaoParaEditar = transacao },
                             aoSegurar = { transacaoParaExcluir = transacao }
                         )
                         HorizontalDivider(thickness = 0.5.dp)
@@ -510,6 +522,7 @@ private fun ItemTransacao(
     transacao: Transacao,
     criadorNome: String?,
     formaTexto: String?,
+    aoTocar: () -> Unit,
     aoSegurar: () -> Unit
 ) {
     val ehGasto = transacao.tipo == TipoTransacao.GASTO
@@ -517,7 +530,7 @@ private fun ItemTransacao(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .fillMaxWidth()
-            .combinedClickable(onClick = {}, onLongClick = aoSegurar)
+            .combinedClickable(onClick = aoTocar, onLongClick = aoSegurar)
             .padding(horizontal = 16.dp, vertical = 12.dp)
     ) {
         Column(modifier = Modifier.weight(1f)) {

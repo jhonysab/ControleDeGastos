@@ -15,6 +15,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
@@ -75,7 +76,8 @@ fun TelaNovaRecorrencia(
         Text(
             text = if (recorrencia.id.isBlank()) "Nova conta do mês" else "Editar conta",
             fontSize = 26.sp,
-            fontWeight = FontWeight.Bold
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.primary
         )
         Text(
             text = "Ela vai aparecer todo mês na aba Contas, esperando ser lançada.",
@@ -144,7 +146,7 @@ fun TelaNovaRecorrencia(
         )
         Spacer(modifier = Modifier.height(24.dp))
 
-        Text(text = "Categoria", fontSize = 16.sp)
+        RotuloSecao(texto = "Categoria")
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             categoriasVisiveis.forEach { c ->
                 FilterChip(

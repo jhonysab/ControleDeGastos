@@ -47,6 +47,10 @@ class TransacaoRepository(
         colecao(familiaId).add(transacao).await()
     }
 
+    suspend fun atualizar(familiaId: String, transacao: Transacao) {
+        colecao(familiaId).document(transacao.id).set(transacao).await()
+    }
+
     suspend fun remover(familiaId: String, transacaoId: String) {
         colecao(familiaId).document(transacaoId).delete().await()
     }
