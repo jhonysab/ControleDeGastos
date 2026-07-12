@@ -16,28 +16,39 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalDrawerSheet
+import androidx.compose.material3.ModalNavigationDrawer
+import androidx.compose.material3.NavigationDrawerItem
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -48,6 +59,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.familia.controledegastos.model.FormaPagamento
 import com.familia.controledegastos.model.Recorrencia
 import com.familia.controledegastos.model.TipoTransacao
 import com.familia.controledegastos.model.Transacao
@@ -60,11 +72,13 @@ import java.text.SimpleDateFormat
 import java.time.YearMonth
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import kotlinx.coroutines.launch
 
 @Composable
 fun TelaPrincipal(
     usuario: Usuario,
     aoSair: () -> Unit,
+    aoAtualizarNome: (String) -> Unit,
     modifier: Modifier = Modifier,
     // key: se trocar de usuário ou de família, o ViewModel antigo é descartado
     vm: TransacoesViewModel = viewModel(key = "transacoes-${usuario.id}-${usuario.familiaId}") {
@@ -75,8 +89,12 @@ fun TelaPrincipal(
     var recorrenciaParaLancar by remember { mutableStateOf<Recorrencia?>(null) }
     var formRecorrencia by remember { mutableStateOf<Recorrencia?>(null) }
     var mostrandoAjustes by remember { mutableStateOf(false) }
+    var mostrandoPerfil by remember { mutableStateOf(false) }
+    var telaCartoes by remember { mutableStateOf(false) }
     var transacaoParaExcluir by remember { mutableStateOf<Transacao?>(null) }
     var abaSelecionada by remember { mutableStateOf(0) }
+    val drawerState = rememberDrawerState(DrawerValue.Closed)
+    val escopo = rememberCoroutineScope()
 
     // Toda vez que a tela (re)aparece — inclusive num novo login —
     // garante que o ouvinte da nuvem está vivo e o erro antigo, limpo.
@@ -87,8 +105,9 @@ fun TelaPrincipal(
     if (lancando) {
         val prefill = recorrenciaParaLancar
         TelaNovaTransacao(
-            aoSalvar = { tipo, valorCentavos, categoria, descricao, dia, recorrenciaId ->
-                vm.adicionar(tipo, valorCentavos, categoria, descricao, dia, recorrenciaId)
+            cartoes = vm.cartoes,
+            aoSalvar = { dados ->
+                vm.adicionar(dados)
                 lancando = false
                 recorrenciaParaLancar = null
             },
@@ -119,6 +138,89 @@ fun TelaPrincipal(
         return
     }
 
+    if (telaCartoes) {
+        TelaCartoes(
+            cartoes = vm.cartoes,
+            aoSalvar = vm::salvarCartao,
+            aoRemover = { vm.removerCartao(it.id) },
+            aoVoltar = { telaCartoes = false },
+            modifier = modifier
+        )
+        return
+    }
+
+    ModalNavigationDrawer(
+        drawerState = drawerState,
+        drawerContent = {
+            ModalDrawerSheet {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(MaterialTheme.colorScheme.primary)
+                        .padding(24.dp)
+                ) {
+                    Text(
+                        text = usuario.nome,
+                        fontSize = 22.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onPrimary
+                    )
+                    Text(
+                        text = "Unicka Finanças",
+                        fontSize = 14.sp,
+                        color = MaterialTheme.colorScheme.primaryContainer
+                    )
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+                NavigationDrawerItem(
+                    label = { Text(text = "Meu perfil", fontSize = 16.sp) },
+                    icon = { Icon(Icons.Filled.Person, contentDescription = null) },
+                    selected = false,
+                    onClick = {
+                        escopo.launch { drawerState.close() }
+                        mostrandoPerfil = true
+                    },
+                    modifier = Modifier.padding(horizontal = 12.dp)
+                )
+                NavigationDrawerItem(
+                    label = { Text(text = "Meus cartões", fontSize = 16.sp) },
+                    icon = { Icon(Icons.Filled.ShoppingCart, contentDescription = null) },
+                    selected = false,
+                    onClick = {
+                        escopo.launch { drawerState.close() }
+                        telaCartoes = true
+                    },
+                    modifier = Modifier.padding(horizontal = 12.dp)
+                )
+                NavigationDrawerItem(
+                    label = { Text(text = "Família e convite", fontSize = 16.sp) },
+                    icon = { Icon(Icons.Filled.Home, contentDescription = null) },
+                    selected = false,
+                    onClick = {
+                        escopo.launch { drawerState.close() }
+                        mostrandoAjustes = true
+                    },
+                    modifier = Modifier.padding(horizontal = 12.dp)
+                )
+                NavigationDrawerItem(
+                    label = { Text(text = "Sair da conta", fontSize = 16.sp, color = VermelhoGasto) },
+                    icon = {
+                        Icon(
+                            Icons.AutoMirrored.Filled.ExitToApp,
+                            contentDescription = null,
+                            tint = VermelhoGasto
+                        )
+                    },
+                    selected = false,
+                    onClick = {
+                        vm.pararEscuta()
+                        aoSair()
+                    },
+                    modifier = Modifier.padding(horizontal = 12.dp)
+                )
+            }
+        }
+    ) {
     Box(modifier = modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize()) {
             Row(
@@ -150,10 +252,10 @@ fun TelaPrincipal(
                         tint = MaterialTheme.colorScheme.onPrimary
                     )
                 }
-                IconButton(onClick = { mostrandoAjustes = true }) {
+                IconButton(onClick = { escopo.launch { drawerState.open() } }) {
                     Icon(
-                        Icons.Filled.Settings,
-                        contentDescription = "Ajustes",
+                        Icons.Filled.Menu,
+                        contentDescription = "Menu",
                         tint = MaterialTheme.colorScheme.onPrimary
                     )
                 }
@@ -286,6 +388,7 @@ fun TelaPrincipal(
                 }
             } else {
                 val nomes = vm.membros.associate { it.id to it.nome }
+                val nomesCartoes = vm.cartoes.associate { it.id to it.nome }
                 LazyColumn(modifier = Modifier.fillMaxSize()) {
                     items(vm.transacoesDoMes, key = { it.id }) { transacao ->
                         ItemTransacao(
@@ -294,6 +397,12 @@ fun TelaPrincipal(
                             criadorNome = if (vm.membros.size > 1 && vm.filtroUid == null) {
                                 nomes[transacao.criadoPor]
                             } else null,
+                            formaTexto = if (transacao.formaPagamento == FormaPagamento.CREDITO) {
+                                listOfNotNull("Crédito", nomesCartoes[transacao.cartaoId])
+                                    .joinToString(" ")
+                            } else {
+                                transacao.formaPagamento.rotulo
+                            },
                             aoSegurar = { transacaoParaExcluir = transacao }
                         )
                         HorizontalDivider(thickness = 0.5.dp)
@@ -314,11 +423,41 @@ fun TelaPrincipal(
                 .padding(24.dp)
         )
     }
+    }
+
+    if (mostrandoPerfil) {
+        var nome by remember { mutableStateOf(usuario.nome) }
+        AlertDialog(
+            onDismissRequest = { mostrandoPerfil = false },
+            title = { Text("Meu perfil") },
+            text = {
+                OutlinedTextField(
+                    value = nome,
+                    onValueChange = { nome = it },
+                    label = { Text("Seu nome") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        aoAtualizarNome(nome)
+                        mostrandoPerfil = false
+                    },
+                    enabled = nome.isNotBlank()
+                ) { Text("Salvar") }
+            },
+            dismissButton = {
+                TextButton(onClick = { mostrandoPerfil = false }) { Text("Cancelar") }
+            }
+        )
+    }
 
     if (mostrandoAjustes) {
         AlertDialog(
             onDismissRequest = { mostrandoAjustes = false },
-            title = { Text("Família") },
+            title = { Text("Família e convite") },
             text = {
                 Column {
                     Text(
@@ -338,14 +477,6 @@ fun TelaPrincipal(
             },
             confirmButton = {
                 TextButton(onClick = { mostrandoAjustes = false }) { Text("Fechar") }
-            },
-            dismissButton = {
-                TextButton(onClick = {
-                    // desliga o ouvinte ANTES do logout, senão o servidor
-                    // recusa o listener órfão com PERMISSION_DENIED
-                    vm.pararEscuta()
-                    aoSair()
-                }) { Text("Sair da conta") }
             }
         )
     }
@@ -378,6 +509,7 @@ fun TelaPrincipal(
 private fun ItemTransacao(
     transacao: Transacao,
     criadorNome: String?,
+    formaTexto: String?,
     aoSegurar: () -> Unit
 ) {
     val ehGasto = transacao.tipo == TipoTransacao.GASTO
@@ -398,7 +530,8 @@ private fun ItemTransacao(
                 text = listOfNotNull(
                     transacao.categoria.rotulo,
                     dataCurta(transacao),
-                    criadorNome
+                    criadorNome,
+                    formaTexto
                 ).joinToString(" • "),
                 fontSize = 14.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant

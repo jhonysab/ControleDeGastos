@@ -112,6 +112,18 @@ class AuthViewModel(
         }
     }
 
+    fun atualizarNome(novoNome: String) {
+        val usuario = (estado as? EstadoAuth.Pronto)?.usuario ?: return
+        if (novoNome.isBlank()) {
+            erro = "Digite um nome."
+            return
+        }
+        executar {
+            repo.atualizarNome(usuario.id, novoNome.trim())
+            estado = EstadoAuth.Pronto(usuario.copy(nome = novoNome.trim()))
+        }
+    }
+
     fun sair() {
         repo.sair()
         estado = EstadoAuth.Deslogado

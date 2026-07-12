@@ -40,8 +40,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.familia.controledegastos.model.Cartao
 import com.familia.controledegastos.model.Categoria
+import com.familia.controledegastos.model.FormaPagamento
 import com.familia.controledegastos.model.TipoTransacao
+import com.familia.controledegastos.ui.DadosLancamento
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
@@ -50,7 +53,8 @@ import java.time.format.DateTimeFormatter
 @OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun TelaNovaTransacao(
-    aoSalvar: (TipoTransacao, Long, Categoria, String, LocalDate, String) -> Unit,
+    cartoes: List<Cartao>,
+    aoSalvar: (DadosLancamento) -> Unit,
     aoCancelar: () -> Unit,
     modifier: Modifier = Modifier,
     // Pré-preenchimento quando o lançamento nasce de uma conta recorrente
@@ -66,6 +70,8 @@ fun TelaNovaTransacao(
     var descricao by remember { mutableStateOf(descricaoInicial) }
     var dataSelecionada by remember { mutableStateOf(LocalDate.now()) }
     var mostrandoCalendario by remember { mutableStateOf(false) }
+    var formaPagamento by remember { mutableStateOf(FormaPagamento.DINHEIRO) }
+    var cartaoId by remember { mutableStateOf("") }
 
     BackHandler(onBack = aoCancelar)
 
@@ -150,6 +156,48 @@ fun TelaNovaTransacao(
         }
         Spacer(modifier = Modifier.height(24.dp))
 
+        Text(
+            text = if (tipo == TipoTransacao.GASTO) "Forma de pagamento" else "Como recebeu?",
+            fontSize = 16.sp
+        )
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FormaPagamento.entries.forEach { forma ->
+                FilterChip(
+                    selected = formaPagamento == forma,
+                    onClick = {
+                        formaPagamento = forma
+                        if (forma != FormaPagamento.CREDITO) cartaoId = ""
+                    },
+                    label = { Text(text = forma.rotulo, fontSize = 15.sp) }
+                )
+            }
+        }
+
+        if (formaPagamento == FormaPagamento.CREDITO) {
+            Spacer(modifier = Modifier.height(12.dp))
+            Text(text = "Qual cartão?", fontSize = 16.sp)
+            if (cartoes.isEmpty()) {
+                Text(
+                    text = "Nenhum cartão cadastrado ainda — cadastre no menu ☰ → Meus cartões.",
+                    fontSize = 14.sp
+                )
+            } else {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    cartoes.forEach { cartao ->
+                        FilterChip(
+                            selected = cartaoId == cartao.id,
+                            onClick = { cartaoId = cartao.id },
+                            label = { Text(text = cartao.nome, fontSize = 15.sp) }
+                        )
+                    }
+                }
+                cartoes.firstOrNull { it.id == cartaoId }?.let {
+                    Text(text = "Fatura vence dia ${it.diaVencimento}", fontSize = 13.sp)
+                }
+            }
+        }
+        Spacer(modifier = Modifier.height(24.dp))
+
         OutlinedTextField(
             value = descricao,
             onValueChange = { descricao = it },
@@ -168,8 +216,22 @@ fun TelaNovaTransacao(
         Spacer(modifier = Modifier.height(32.dp))
 
         Button(
-            onClick = { aoSalvar(tipo, valorCentavos, categoria!!, descricao, dataSelecionada, recorrenciaId) },
-            enabled = valorCentavos > 0 && categoria != null,
+            onClick = {
+                aoSalvar(
+                    DadosLancamento(
+                        tipo = tipo,
+                        valorCentavos = valorCentavos,
+                        categoria = categoria!!,
+                        descricao = descricao,
+                        dia = dataSelecionada,
+                        recorrenciaId = recorrenciaId,
+                        formaPagamento = formaPagamento,
+                        cartaoId = cartaoId
+                    )
+                )
+            },
+            enabled = valorCentavos > 0 && categoria != null &&
+                (formaPagamento != FormaPagamento.CREDITO || cartaoId.isNotBlank()),
             modifier = Modifier
                 .fillMaxWidth()
                 .height(56.dp)

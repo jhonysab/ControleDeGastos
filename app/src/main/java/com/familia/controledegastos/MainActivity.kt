@@ -96,6 +96,7 @@ fun App(modifier: Modifier = Modifier, vm: AuthViewModel = viewModel()) {
                 TelaPrincipal(
                     usuario = estado.usuario,
                     aoSair = vm::sair,
+                    aoAtualizarNome = vm::atualizarNome,
                     modifier = modifier
                 )
             }

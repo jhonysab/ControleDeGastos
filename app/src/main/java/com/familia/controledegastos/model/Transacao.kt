@@ -22,7 +22,10 @@ data class Transacao(
     val criadoPor: String = "",
     // Se nasceu de uma conta recorrente, guarda o id dela —
     // é assim que a aba Contas sabe que o mês está pago.
-    val recorrenciaId: String = ""
+    val recorrenciaId: String = "",
+    val formaPagamento: FormaPagamento = FormaPagamento.DINHEIRO,
+    // Preenchido apenas quando formaPagamento == CREDITO
+    val cartaoId: String = ""
 ) {
     fun valorFormatado(): String = formatarCentavos(valorCentavos)
 }

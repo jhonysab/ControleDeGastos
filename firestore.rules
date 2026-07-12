@@ -54,6 +54,17 @@ service cloud.firestore {
           && request.resource.data.valorCentavos > 0;
       }
 
+      // Cartões de crédito da família.
+      match /cartoes/{cartaoId} {
+        allow read, delete: if ehMembro(database, familiaId);
+        allow create, update: if ehMembro(database, familiaId)
+          && request.resource.data.nome is string
+          && request.resource.data.nome.size() > 0
+          && request.resource.data.diaVencimento is int
+          && request.resource.data.diaVencimento >= 1
+          && request.resource.data.diaVencimento <= 31;
+      }
+
       // Contas recorrentes: modelos de lançamento mensal (luz, água...).
       match /recorrencias/{recorrenciaId} {
         allow read, delete: if ehMembro(database, familiaId);

@@ -9,7 +9,10 @@ import com.familia.controledegastos.data.AuthRepository
 import com.familia.controledegastos.data.OrcamentoRepository
 import com.familia.controledegastos.data.RecorrenciaRepository
 import com.familia.controledegastos.data.TransacaoRepository
+import com.familia.controledegastos.data.CartaoRepository
+import com.familia.controledegastos.model.Cartao
 import com.familia.controledegastos.model.Categoria
+import com.familia.controledegastos.model.FormaPagamento
 import com.familia.controledegastos.model.Recorrencia
 import com.familia.controledegastos.model.Usuario
 import com.familia.controledegastos.model.TipoTransacao
@@ -29,12 +32,25 @@ data class ResumoMensal(
     val gastosCentavos: Long
 )
 
+// Tudo que a tela de lançamento coleta, num pacote só.
+data class DadosLancamento(
+    val tipo: TipoTransacao,
+    val valorCentavos: Long,
+    val categoria: Categoria,
+    val descricao: String,
+    val dia: LocalDate,
+    val recorrenciaId: String = "",
+    val formaPagamento: FormaPagamento = FormaPagamento.DINHEIRO,
+    val cartaoId: String = ""
+)
+
 class TransacoesViewModel(
     private val familiaId: String,
     private val uid: String,
     private val repo: TransacaoRepository = TransacaoRepository(),
     private val orcamentoRepo: OrcamentoRepository = OrcamentoRepository(),
     private val recorrenciaRepo: RecorrenciaRepository = RecorrenciaRepository(),
+    private val cartaoRepo: CartaoRepository = CartaoRepository(),
     private val authRepo: AuthRepository = AuthRepository()
 ) : ViewModel() {
 
@@ -45,6 +61,8 @@ class TransacoesViewModel(
     var recorrencias by mutableStateOf<List<Recorrencia>>(emptyList())
         private set
     var membros by mutableStateOf<List<Usuario>>(emptyList())
+        private set
+    var cartoes by mutableStateOf<List<Cartao>>(emptyList())
         private set
 
     // null = família toda; uid = só o que aquela pessoa lançou
@@ -82,9 +100,34 @@ class TransacoesViewModel(
                 .catch { erro = "Não foi possível carregar as contas: ${it.message}" }
                 .collect { recorrencias = it }
         }
+        escutas += viewModelScope.launch {
+            cartaoRepo.observar(familiaId)
+                .catch { erro = "Não foi possível carregar os cartões: ${it.message}" }
+                .collect { cartoes = it }
+        }
         viewModelScope.launch {
             // nomes mudam raramente: uma busca por sessão basta
             runCatching { membros = authRepo.carregarMembros(familiaId) }
+        }
+    }
+
+    fun salvarCartao(cartao: Cartao) {
+        viewModelScope.launch {
+            try {
+                cartaoRepo.salvar(familiaId, cartao)
+            } catch (e: Exception) {
+                erro = "Não foi possível salvar o cartão: ${e.message}"
+            }
+        }
+    }
+
+    fun removerCartao(cartaoId: String) {
+        viewModelScope.launch {
+            try {
+                cartaoRepo.remover(familiaId, cartaoId)
+            } catch (e: Exception) {
+                erro = "Não foi possível excluir o cartão: ${e.message}"
+            }
         }
     }
 
@@ -190,30 +233,25 @@ class TransacoesViewModel(
         mesSelecionado = mesSelecionado.plusMonths(1)
     }
 
-    fun adicionar(
-        tipo: TipoTransacao,
-        valorCentavos: Long,
-        categoria: Categoria,
-        descricao: String,
-        dia: LocalDate,
-        recorrenciaId: String = ""
-    ) {
+    fun adicionar(dados: DadosLancamento) {
         viewModelScope.launch {
             try {
                 repo.adicionar(
                     familiaId,
                     Transacao(
-                        tipo = tipo,
-                        valorCentavos = valorCentavos,
-                        categoria = categoria,
-                        descricao = descricao.trim(),
+                        tipo = dados.tipo,
+                        valorCentavos = dados.valorCentavos,
+                        categoria = dados.categoria,
+                        descricao = dados.descricao.trim(),
                         // meio-dia local: longe das bordas de fuso, o dia
                         // nunca "escorrega" para o mês vizinho
                         data = Timestamp(
-                            Date.from(dia.atTime(12, 0).atZone(ZoneId.systemDefault()).toInstant())
+                            Date.from(dados.dia.atTime(12, 0).atZone(ZoneId.systemDefault()).toInstant())
                         ),
                         criadoPor = uid,
-                        recorrenciaId = recorrenciaId
+                        recorrenciaId = dados.recorrenciaId,
+                        formaPagamento = dados.formaPagamento,
+                        cartaoId = dados.cartaoId
                     )
                 )
             } catch (e: Exception) {
