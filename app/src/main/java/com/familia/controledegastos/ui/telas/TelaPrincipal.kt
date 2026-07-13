@@ -8,6 +8,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -29,6 +30,7 @@ import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
@@ -61,6 +63,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -69,6 +72,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.familia.controledegastos.R
+import com.familia.controledegastos.export.ExportacaoCsv
 import com.familia.controledegastos.model.Categoria
 import com.familia.controledegastos.model.FormaPagamento
 import com.familia.controledegastos.model.Recorrencia
@@ -112,6 +116,7 @@ fun TelaPrincipal(
     var abaSelecionada by remember { mutableStateOf(0) }
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val escopo = rememberCoroutineScope()
+    val contexto = LocalContext.current
 
     // Toda vez que a tela (re)aparece — inclusive num novo login —
     // garante que o ouvinte da nuvem está vivo e o erro antigo, limpo.
@@ -123,6 +128,18 @@ fun TelaPrincipal(
     if (lancando || editando != null) {
         val prefill = recorrenciaParaLancar
         val categoriaIdInicial = editando?.categoria ?: prefill?.categoria
+        // Editando: mantém a data do lançamento.
+        // Lançando uma conta recorrente: cai no MÊS que está sendo visto,
+        // no dia do vencimento — não em "hoje" — para bater com o status
+        // "Lançada / Lançar" da aba Contas.
+        val dataInicialForm = when {
+            editando != null -> editando.data.toDate().toInstant()
+                .atZone(ZoneId.systemDefault()).toLocalDate()
+            prefill != null -> vm.mesSelecionado.atDay(
+                minOf(prefill.diaVencimento, vm.mesSelecionado.lengthOfMonth())
+            )
+            else -> LocalDate.now()
+        }
         TelaNovaTransacao(
             cartoes = vm.cartoes,
             categoriasGasto = vm.categoriasParaGasto,
@@ -143,8 +160,7 @@ fun TelaPrincipal(
             categoriaInicial = categoriaIdInicial?.let { vm.resolverCategoria(it) },
             descricaoInicial = editando?.descricao ?: prefill?.descricao ?: "",
             recorrenciaId = prefill?.id ?: "",
-            dataInicial = editando?.data?.toDate()?.toInstant()
-                ?.atZone(ZoneId.systemDefault())?.toLocalDate() ?: LocalDate.now(),
+            dataInicial = dataInicialForm,
             formaPagamentoInicial = editando?.formaPagamento ?: FormaPagamento.DINHEIRO,
             cartaoIdInicial = editando?.cartaoId ?: "",
             editando = editando != null,
@@ -260,6 +276,24 @@ fun TelaPrincipal(
                     onClick = {
                         escopo.launch { drawerState.close() }
                         mostrandoAjustes = true
+                    },
+                    modifier = Modifier.padding(horizontal = 12.dp)
+                )
+                NavigationDrawerItem(
+                    label = { Text(text = "Exportar / Backup", fontSize = 16.sp) },
+                    icon = { Icon(Icons.Filled.Share, contentDescription = null) },
+                    selected = false,
+                    onClick = {
+                        escopo.launch { drawerState.close() }
+                        if (vm.transacoes.isEmpty()) {
+                            vm.avisarNadaParaExportar()
+                        } else {
+                            ExportacaoCsv.compartilhar(
+                                contexto,
+                                vm.gerarCsvExportacao(),
+                                "unicka-financas-${LocalDate.now()}.csv"
+                            )
+                        }
                     },
                     modifier = Modifier.padding(horizontal = 12.dp)
                 )
@@ -404,88 +438,77 @@ fun TelaPrincipal(
                 )
             } else {
 
-            Spacer(modifier = Modifier.height(12.dp))
-            Card(
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer
-                ),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp)
+            // Aba Resumo: o saldo, a busca e os filtros ficam DENTRO da lista,
+            // então rolam junto — ao descer saem de vista e liberam a tela,
+            // ao voltar ao topo reaparecem.
+            val exibidas = vm.transacoesExibidas
+            val nomes = vm.membros.associate { it.id to it.nome }
+            val nomesCartoes = vm.cartoes.associate { it.id to it.nome }
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                // respiro no fim para o botão "Lançar" não tampar o último item
+                contentPadding = PaddingValues(bottom = 88.dp)
             ) {
-                Row(modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp)) {
-                    ResumoColuna(
-                        rotulo = "Entradas",
-                        valorCentavos = vm.totalGanhosCentavos,
-                        cor = VerdeGanho,
-                        modifier = Modifier.weight(1f)
-                    )
-                    ResumoColuna(
-                        rotulo = "Saídas",
-                        valorCentavos = vm.totalGastosCentavos,
-                        cor = VermelhoGasto,
-                        modifier = Modifier.weight(1f)
-                    )
-                    ResumoColuna(
-                        rotulo = "Saldo",
-                        valorCentavos = vm.saldoCentavos,
-                        cor = if (vm.saldoCentavos >= 0) VerdeGanho else VermelhoGasto,
-                        modifier = Modifier.weight(1f)
-                    )
+                item {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    CartaoResumo(vm)
                 }
-            }
 
-            if (vm.transacoesDoMes.isEmpty()) {
-                Box(modifier = Modifier
-                    .fillMaxSize()
-                    .padding(24.dp), contentAlignment = Alignment.Center) {
-                    Text(
-                        text = "Nenhum lançamento em ${nomeDoMes(vm.mesSelecionado)}.\n\nToque em Lançar para registrar o primeiro.",
-                        fontSize = 17.sp,
-                        textAlign = TextAlign.Center,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            } else {
-                ControlesLista(vm)
-                val exibidas = vm.transacoesExibidas
-                if (exibidas.isEmpty()) {
-                    Box(modifier = Modifier
-                        .fillMaxSize()
-                        .padding(24.dp), contentAlignment = Alignment.Center) {
-                        Text(
-                            text = "Nenhum lançamento com esses filtros.",
-                            fontSize = 16.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                if (vm.transacoesDoMes.isEmpty()) {
+                    item {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 48.dp, start = 24.dp, end = 24.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "Nenhum lançamento em ${nomeDoMes(vm.mesSelecionado)}.\n\nToque em Lançar para registrar o primeiro.",
+                                fontSize = 17.sp,
+                                textAlign = TextAlign.Center,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
                 } else {
-                val nomes = vm.membros.associate { it.id to it.nome }
-                val nomesCartoes = vm.cartoes.associate { it.id to it.nome }
-                LazyColumn(modifier = Modifier.fillMaxSize()) {
-                    items(exibidas, key = { it.id }) { transacao ->
-                        ItemTransacao(
-                            transacao = transacao,
-                            categoria = vm.resolverCategoria(transacao.categoria),
-                            // só faz sentido dizer quem lançou vendo "Todos"
-                            criadorNome = if (vm.membros.size > 1 && vm.filtroUid == null) {
-                                nomes[transacao.criadoPor]
-                            } else null,
-                            formaTexto = if (transacao.formaPagamento == FormaPagamento.CREDITO) {
-                                listOfNotNull("Crédito", nomesCartoes[transacao.cartaoId])
-                                    .joinToString(" ")
-                            } else {
-                                transacao.formaPagamento.rotulo
-                            },
-                            aoTocar = { transacaoParaEditar = transacao },
-                            aoSegurar = { transacaoParaExcluir = transacao }
-                        )
-                        HorizontalDivider(thickness = 0.5.dp)
+                    item { ControlesLista(vm) }
+
+                    if (exibidas.isEmpty()) {
+                        item {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 48.dp, start = 24.dp, end = 24.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = "Nenhum lançamento com esses filtros.",
+                                    fontSize = 16.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    } else {
+                        items(exibidas, key = { it.id }) { transacao ->
+                            ItemTransacao(
+                                transacao = transacao,
+                                categoria = vm.resolverCategoria(transacao.categoria),
+                                // só faz sentido dizer quem lançou vendo "Todos"
+                                criadorNome = if (vm.membros.size > 1 && vm.filtroUid == null) {
+                                    nomes[transacao.criadoPor]
+                                } else null,
+                                formaTexto = if (transacao.formaPagamento == FormaPagamento.CREDITO) {
+                                    listOfNotNull("Crédito", nomesCartoes[transacao.cartaoId])
+                                        .joinToString(" ")
+                                } else {
+                                    transacao.formaPagamento.rotulo
+                                },
+                                aoTocar = { transacaoParaEditar = transacao },
+                                aoSegurar = { transacaoParaExcluir = transacao }
+                            )
+                            HorizontalDivider(thickness = 0.5.dp)
+                        }
                     }
-                }
                 }
             }
             } // fim da aba Resumo
@@ -743,6 +766,58 @@ private fun ItemTransacao(
     }
 }
 
+// Card do topo da aba Resumo: Saldo em destaque + Entradas/Saídas.
+@Composable
+private fun CartaoResumo(vm: TransacoesViewModel) {
+    Card(
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.primaryContainer,
+            contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+        ),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp)
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
+        ) {
+            // Saldo em destaque: é o número que os pais mais olham.
+            Text(
+                text = "Saldo do mês",
+                fontSize = 14.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+                text = formatarCentavos(vm.saldoCentavos),
+                fontSize = 30.sp,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                color = if (vm.saldoCentavos >= 0) VerdeGanho else VermelhoGasto
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+            HorizontalDivider(modifier = Modifier.fillMaxWidth())
+            Spacer(modifier = Modifier.height(12.dp))
+            Row(modifier = Modifier.fillMaxWidth()) {
+                ResumoColuna(
+                    rotulo = "Entradas",
+                    valorCentavos = vm.totalGanhosCentavos,
+                    cor = VerdeGanho,
+                    modifier = Modifier.weight(1f)
+                )
+                ResumoColuna(
+                    rotulo = "Saídas",
+                    valorCentavos = vm.totalGastosCentavos,
+                    cor = VermelhoGasto,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+        }
+    }
+}
+
 @Composable
 private fun ResumoColuna(
     rotulo: String,
@@ -754,8 +829,9 @@ private fun ResumoColuna(
         Text(text = rotulo, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Text(
             text = formatarCentavos(valorCentavos),
-            fontSize = 16.sp,
+            fontSize = 18.sp,
             fontWeight = FontWeight.Bold,
+            maxLines = 1,
             color = cor
         )
     }

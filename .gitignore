@@ -13,3 +13,12 @@
 .externalNativeBuild
 .cxx
 local.properties
+
+# Assinatura do release — NUNCA versionar (perder a chave = não dá
+# mais pra atualizar o app com a mesma identidade).
+keystore.properties
+*.jks
+*.keystore
+
+# Saída do "Generate Signed APK" do Android Studio (APK + cópia do keystore)
+app/release/

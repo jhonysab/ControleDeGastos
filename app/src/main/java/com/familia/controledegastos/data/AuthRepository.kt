@@ -6,6 +6,9 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FirebaseFirestoreException
+import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.tasks.await
 
 // Cuida de login/cadastro (Firebase Auth) e da ponte com as
@@ -41,12 +44,21 @@ class AuthRepository(
         db.collection("usuarios").document(uid).update("nome", novoNome).await()
     }
 
-    // Todos os perfis da família — usado no filtro "quem gastou o quê".
-    suspend fun carregarMembros(familiaId: String): List<Usuario> =
-        db.collection("usuarios")
+    // Todos os perfis da família, em tempo real: quando alguém entra
+    // com o código (ou muda o nome), o filtro "quem gastou o quê" e os
+    // nomes na lista atualizam sozinhos, sem precisar reabrir o app.
+    fun observarMembros(familiaId: String): Flow<List<Usuario>> = callbackFlow {
+        val inscricao = db.collection("usuarios")
             .whereEqualTo("familiaId", familiaId)
-            .get().await()
-            .toObjects(Usuario::class.java)
+            .addSnapshotListener { snapshot, erro ->
+                if (erro != null) {
+                    close(erro)
+                    return@addSnapshotListener
+                }
+                trySend(snapshot?.toObjects(Usuario::class.java).orEmpty())
+            }
+        awaitClose { inscricao.remove() }
+    }
 
     suspend fun criarFamilia(nomeFamilia: String, uid: String): String {
         val ref = db.collection("familias")

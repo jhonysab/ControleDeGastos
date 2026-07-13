@@ -1,7 +1,18 @@
+import java.io.FileInputStream
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.google.services)
+}
+
+// Senhas de assinatura ficam em keystore.properties (FORA do git).
+// Sem esse arquivo o app ainda compila (gera um APK release não
+// assinado), mas só o APK assinado instala no celular dos pais.
+val arquivoAssinatura = rootProject.file("keystore.properties")
+val propsAssinatura = Properties().apply {
+    if (arquivoAssinatura.exists()) load(FileInputStream(arquivoAssinatura))
 }
 
 android {
@@ -18,10 +29,29 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    signingConfigs {
+        create("release") {
+            if (arquivoAssinatura.exists()) {
+                storeFile = rootProject.file(propsAssinatura.getProperty("storeFile"))
+                storePassword = propsAssinatura.getProperty("storePassword")
+                keyAlias = propsAssinatura.getProperty("keyAlias")
+                keyPassword = propsAssinatura.getProperty("keyPassword")
+            }
+        }
+    }
+
     buildTypes {
         release {
-            optimization {
-                enable = false
+            // R8: encolhe e ofusca o código. proguard-rules.pro protege o
+            // que é usado por reflexão (modelos do Firestore, o worker).
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
+            if (arquivoAssinatura.exists()) {
+                signingConfig = signingConfigs.getByName("release")
             }
         }
     }

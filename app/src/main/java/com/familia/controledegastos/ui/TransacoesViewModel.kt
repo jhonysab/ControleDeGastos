@@ -23,6 +23,7 @@ import com.google.firebase.Timestamp
 import java.time.LocalDate
 import java.time.YearMonth
 import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import java.util.Date
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.catch
@@ -138,13 +139,15 @@ class TransacoesViewModel(
                 .catch { erro = "Não foi possível carregar as categorias: ${it.message}" }
                 .collect { categorias = it }
         }
+        escutas += viewModelScope.launch {
+            authRepo.observarMembros(familiaId)
+                // sem perfis extras a tela ainda funciona; não vale travar por isso
+                .catch { }
+                .collect { membros = it }
+        }
         viewModelScope.launch {
             // primeira vez da família: cria as categorias iniciais
             runCatching { categoriaRepo.semearSePreciso(familiaId) }
-        }
-        viewModelScope.launch {
-            // nomes mudam raramente: uma busca por sessão basta
-            runCatching { membros = authRepo.carregarMembros(familiaId) }
         }
     }
 
@@ -460,6 +463,58 @@ class TransacoesViewModel(
         }
     }
 
+    // Backup em CSV de TODOS os lançamentos da família (todos os meses),
+    // em ordem cronológica. Delimitador ';' e decimais com vírgula: é o
+    // que o Excel em português abre direto. Gastos saem negativos, então
+    // uma soma da coluna Valor já dá o saldo.
+    fun gerarCsvExportacao(): String {
+        val nomes = membros.associate { it.id to it.nome }
+        val nomesCartoes = cartoes.associate { it.id to it.nome }
+        val formatoData = DateTimeFormatter.ofPattern("dd/MM/yyyy")
+
+        val cabecalho = listOf(
+            "Data", "Tipo", "Categoria", "Descrição", "Valor", "Forma", "Cartão", "Lançado por"
+        )
+        val linhas = transacoes
+            .sortedBy { it.data }
+            .map { t ->
+                val ehGasto = t.tipo == TipoTransacao.GASTO
+                val valorAssinado = if (ehGasto) -t.valorCentavos else t.valorCentavos
+                listOf(
+                    diaDaTransacao(t).format(formatoData),
+                    if (ehGasto) "Gasto" else "Ganho",
+                    resolverCategoria(t.categoria).nome,
+                    t.descricao,
+                    centavosParaTextoCsv(valorAssinado),
+                    t.formaPagamento.rotulo,
+                    if (t.formaPagamento == FormaPagamento.CREDITO) nomesCartoes[t.cartaoId].orEmpty() else "",
+                    nomes[t.criadoPor].orEmpty()
+                )
+            }
+
+        return (listOf(cabecalho) + linhas).joinToString("\r\n") { linha ->
+            linha.joinToString(";") { campoCsv(it) }
+        }
+    }
+
+    // Envolve em aspas (e dobra as internas) só quando o campo tem
+    // caractere que quebraria o CSV.
+    private fun campoCsv(valor: String): String =
+        if (valor.any { it == ';' || it == '"' || it == '\n' || it == '\r' }) {
+            "\"" + valor.replace("\"", "\"\"") + "\""
+        } else {
+            valor
+        }
+
+    // Centavos -> "1234,56" (vírgula decimal, sem R$ nem separador de
+    // milhar, para o Excel reconhecer como número).
+    private fun centavosParaTextoCsv(centavos: Long): String {
+        val negativo = centavos < 0
+        val abs = if (negativo) -centavos else centavos
+        return (if (negativo) "-" else "") +
+            "${abs / 100},${(abs % 100).toString().padStart(2, '0')}"
+    }
+
     fun remover(transacaoId: String) {
         viewModelScope.launch {
             try {
@@ -468,6 +523,10 @@ class TransacoesViewModel(
                 erro = "Não foi possível excluir: ${e.message}"
             }
         }
+    }
+
+    fun avisarNadaParaExportar() {
+        erro = "Nenhum lançamento para exportar ainda."
     }
 
     fun limparErro() {
