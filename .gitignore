@@ -22,3 +22,6 @@ keystore.properties
 
 # Saída do "Generate Signed APK" do Android Studio (APK + cópia do keystore)
 app/release/
+
+# Relatórios e turnos exportados pelo app (contêm dados financeiros reais)
+*.pdf
