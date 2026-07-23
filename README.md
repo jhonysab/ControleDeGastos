@@ -117,6 +117,12 @@ Depois:
 
 App funcional (versão `1.0.1`), usado pela família. Evoluiu a partir do uso real: categorias personalizadas, filtros no resumo, exportação e otimização do build de release surgiram de necessidades que apareceram na prática.
 
+## 📄 Licença
+
+Distribuído sob a **Licença MIT** — você pode usar, estudar, modificar e compartilhar livremente, mantendo o aviso de copyright. Veja o arquivo [LICENSE](LICENSE) para os detalhes.
+
+© 2026 Jhonatan Brum
+
 ---
 
 <div align="center">
