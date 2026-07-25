@@ -34,15 +34,16 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.familia.controledegastos.model.Recorrencia
+import com.familia.controledegastos.model.TipoTransacao
 import com.familia.controledegastos.model.formatarCentavos
 import com.familia.controledegastos.ui.theme.VerdeGanho
 import com.familia.controledegastos.ui.theme.VermelhoGasto
 import androidx.compose.ui.graphics.Color
 
-// Contas do mês: cada recorrência com seu status no mês selecionado.
-// Toque = editar; toque longo = excluir; "Lançar" = registrar o
-// pagamento com tudo pré-preenchido.
-@OptIn(ExperimentalFoundationApi::class)
+// Contas do mês, separadas em dois grupos: o que sai (contas a pagar)
+// e o que entra (rendas fixas). Cada linha mostra o status no mês
+// selecionado. Toque = editar; toque longo = excluir; "Lançar" =
+// registrar o pagamento com tudo pré-preenchido.
 @Composable
 fun AbaContas(
     recorrencias: List<Recorrencia>,
@@ -55,6 +56,9 @@ fun AbaContas(
     modifier: Modifier = Modifier
 ) {
     var paraExcluir by remember { mutableStateOf<Recorrencia?>(null) }
+
+    val aPagar = recorrencias.filter { it.tipo == TipoTransacao.GASTO }
+    val aReceber = recorrencias.filter { it.tipo == TipoTransacao.GANHO }
 
     Column(
         modifier = modifier
@@ -80,51 +84,26 @@ fun AbaContas(
             Spacer(modifier = Modifier.height(24.dp))
         }
 
-        recorrencias.forEach { recorrencia ->
-            val paga = recorrencia.id in pagasNoMes
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .combinedClickable(
-                        onClick = { aoEditar(recorrencia) },
-                        onLongClick = { paraExcluir = recorrencia }
-                    )
-                    .padding(vertical = 10.dp)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(14.dp)
-                        .background(color = corDaCategoria(recorrencia.categoria), shape = CircleShape)
-                )
-                Spacer(modifier = Modifier.width(10.dp))
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = recorrencia.descricao,
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Medium
-                    )
-                    Text(
-                        text = "Dia ${recorrencia.diaVencimento} • ${formatarCentavos(recorrencia.valorEsperadoCentavos)}",
-                        fontSize = 14.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                if (paga) {
-                    Text(
-                        text = "✓ Lançada",
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = VerdeGanho
-                    )
-                } else {
-                    Button(onClick = { aoLancar(recorrencia) }) {
-                        Text(text = "Lançar", fontSize = 15.sp)
-                    }
-                }
-            }
-            HorizontalDivider(thickness = 0.5.dp)
-        }
+        GrupoDeContas(
+            titulo = "Contas a pagar",
+            cor = VermelhoGasto,
+            itens = aPagar,
+            pagasNoMes = pagasNoMes,
+            corDaCategoria = corDaCategoria,
+            aoLancar = aoLancar,
+            aoEditar = aoEditar,
+            aoSegurar = { paraExcluir = it }
+        )
+        GrupoDeContas(
+            titulo = "Rendas fixas",
+            cor = VerdeGanho,
+            itens = aReceber,
+            pagasNoMes = pagasNoMes,
+            corDaCategoria = corDaCategoria,
+            aoLancar = aoLancar,
+            aoEditar = aoEditar,
+            aoSegurar = { paraExcluir = it }
+        )
 
         Spacer(modifier = Modifier.height(20.dp))
         OutlinedButton(
@@ -158,5 +137,102 @@ fun AbaContas(
                 TextButton(onClick = { paraExcluir = null }) { Text("Cancelar") }
             }
         )
+    }
+}
+
+// Um bloco da aba (a pagar / a receber). Some da tela quando não
+// há nenhuma conta daquele tipo.
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun GrupoDeContas(
+    titulo: String,
+    cor: Color,
+    itens: List<Recorrencia>,
+    pagasNoMes: Set<String>,
+    corDaCategoria: (String) -> Color,
+    aoLancar: (Recorrencia) -> Unit,
+    aoEditar: (Recorrencia) -> Unit,
+    aoSegurar: (Recorrencia) -> Unit
+) {
+    if (itens.isEmpty()) return
+
+    val total = itens.sumOf { it.valorEsperadoCentavos }
+    val faltam = itens.count { it.id !in pagasNoMes }
+
+    Spacer(modifier = Modifier.height(16.dp))
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Text(
+            text = titulo,
+            fontSize = 16.sp,
+            fontWeight = FontWeight.Bold,
+            color = cor,
+            modifier = Modifier.weight(1f)
+        )
+        Text(
+            text = formatarCentavos(total),
+            fontSize = 15.sp,
+            fontWeight = FontWeight.Medium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+    Text(
+        text = if (faltam == 0) {
+            "Tudo lançado neste mês ✓"
+        } else {
+            "$faltam de ${itens.size} ainda não lançada" + if (faltam > 1) "s" else ""
+        },
+        fontSize = 13.sp,
+        color = MaterialTheme.colorScheme.onSurfaceVariant
+    )
+    Spacer(modifier = Modifier.height(4.dp))
+    HorizontalDivider(thickness = 1.dp, color = cor)
+
+    itens.forEach { recorrencia ->
+        val paga = recorrencia.id in pagasNoMes
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .fillMaxWidth()
+                .combinedClickable(
+                    onClick = { aoEditar(recorrencia) },
+                    onLongClick = { aoSegurar(recorrencia) }
+                )
+                .padding(vertical = 10.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(14.dp)
+                    .background(color = corDaCategoria(recorrencia.categoria), shape = CircleShape)
+            )
+            Spacer(modifier = Modifier.width(10.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = recorrencia.descricao,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Medium
+                )
+                Text(
+                    text = "Dia ${recorrencia.diaVencimento} • ${formatarCentavos(recorrencia.valorEsperadoCentavos)}",
+                    fontSize = 14.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            if (paga) {
+                Text(
+                    text = "✓ Lançada",
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = VerdeGanho
+                )
+            } else {
+                Button(onClick = { aoLancar(recorrencia) }) {
+                    Text(text = "Lançar", fontSize = 15.sp)
+                }
+            }
+        }
+        HorizontalDivider(thickness = 0.5.dp)
     }
 }

@@ -52,4 +52,15 @@ class CategoriaRepository(
     suspend fun arquivar(familiaId: String, categoriaId: String, arquivada: Boolean) {
         colecao(familiaId).document(categoriaId).update("arquivada", arquivada).await()
     }
+
+    // Esconde (ou traz de volta) a categoria só na aba Limites.
+    suspend fun ocultarNosLimites(familiaId: String, categoriaId: String, oculta: Boolean) {
+        colecao(familiaId).document(categoriaId).update("ocultaNosLimites", oculta).await()
+    }
+
+    // Apaga de vez. Só deve ser chamado para categoria sem nenhum
+    // lançamento — senão o histórico fica apontando para o nada.
+    suspend fun remover(familiaId: String, categoriaId: String) {
+        colecao(familiaId).document(categoriaId).delete().await()
+    }
 }

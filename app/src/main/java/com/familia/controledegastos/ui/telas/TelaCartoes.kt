@@ -37,12 +37,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.familia.controledegastos.R
 import com.familia.controledegastos.model.Cartao
 import com.familia.controledegastos.model.formatarCentavos
+import com.familia.controledegastos.model.primeiraMaiuscula
 import com.familia.controledegastos.ui.theme.VerdeGanho
 import com.familia.controledegastos.ui.theme.VermelhoGasto
 
@@ -212,6 +214,9 @@ fun TelaCartoes(
                         onValueChange = { nome = it },
                         label = { Text("Nome (ex: Nubank do Pai)") },
                         singleLine = true,
+                        keyboardOptions = KeyboardOptions(
+                            capitalization = KeyboardCapitalization.Words
+                        ),
                         modifier = Modifier.fillMaxWidth()
                     )
                     Spacer(modifier = Modifier.height(12.dp))
@@ -246,7 +251,7 @@ fun TelaCartoes(
                     onClick = {
                         aoSalvar(
                             cartao.copy(
-                                nome = nome.trim(),
+                                nome = nome.primeiraMaiuscula(),
                                 diaVencimento = vencimento!!,
                                 diaFechamento = fechamento!!,
                                 limiteCentavos = limiteCentavos

@@ -15,7 +15,12 @@ data class Categoria(
     val nome: String = "",
     val corHex: String = "#90A4AE",
     val tipo: TipoCategoria = TipoCategoria.GASTO,
-    val arquivada: Boolean = false
+    // Arquivada de vez: some das opções de lançamento (o histórico
+    // antigo continua mostrando o nome).
+    val arquivada: Boolean = false,
+    // Só some da aba Limites — continua valendo para lançar.
+    // Serve para tirar da frente o que nunca vai ter limite.
+    val ocultaNosLimites: Boolean = false
 ) {
     // .rotulo mantém compatibilidade com as telas que já usavam esse nome
     val rotulo: String get() = nome

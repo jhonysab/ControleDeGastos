@@ -31,12 +31,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.familia.controledegastos.model.Categoria
 import com.familia.controledegastos.model.Recorrencia
 import com.familia.controledegastos.model.TipoTransacao
+import com.familia.controledegastos.model.primeiraMaiuscula
 
 // Criar ou editar uma conta recorrente. `recorrencia` com id em
 // branco significa conta nova.
@@ -121,6 +123,9 @@ fun TelaNovaRecorrencia(
                 )
             },
             singleLine = true,
+            keyboardOptions = KeyboardOptions(
+                capitalization = KeyboardCapitalization.Sentences
+            ),
             modifier = Modifier.fillMaxWidth()
         )
         Spacer(modifier = Modifier.height(12.dp))
@@ -160,7 +165,7 @@ fun TelaNovaRecorrencia(
                 aoSalvar(
                     recorrencia.copy(
                         tipo = tipo,
-                        descricao = descricao.trim(),
+                        descricao = descricao.primeiraMaiuscula(),
                         valorEsperadoCentavos = valorCentavos,
                         categoria = categoria!!.id,
                         diaVencimento = dia!!

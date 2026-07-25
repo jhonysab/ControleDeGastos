@@ -16,7 +16,12 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -46,9 +51,14 @@ fun AbaOrcamento(
     gastoPorCategoriaId: Map<String, Long>,
     orcamentos: Map<String, Long>,
     aoDefinir: (String, Long) -> Unit,
+    aoArquivar: (String, Boolean) -> Unit,
     modifier: Modifier = Modifier
 ) {
     var editando by remember { mutableStateOf<Categoria?>(null) }
+    var mostrandoArquivadas by remember { mutableStateOf(false) }
+
+    val visiveis = categorias.filter { !it.ocultaNosLimites }
+    val arquivadas = categorias.filter { it.ocultaNosLimites }
 
     Column(
         modifier = modifier
@@ -58,20 +68,90 @@ fun AbaOrcamento(
     ) {
         Text(text = "Limites do mês", fontSize = 18.sp, fontWeight = FontWeight.Medium)
         Text(
-            text = "Toque numa categoria para definir ou mudar o limite.",
+            text = "Toque numa categoria para definir o limite. Arquive as que " +
+                "não precisam — elas continuam valendo nos lançamentos.",
             fontSize = 14.sp,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         Spacer(modifier = Modifier.height(8.dp))
 
-        categorias.forEach { categoria ->
+        if (visiveis.isEmpty()) {
+            Spacer(modifier = Modifier.height(24.dp))
+            Text(
+                text = "Todas as categorias estão arquivadas aqui. Abra o grupo " +
+                    "abaixo para trazer alguma de volta.",
+                fontSize = 15.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+        }
+
+        visiveis.forEach { categoria ->
             LinhaOrcamento(
                 categoria = categoria,
                 gastoCentavos = gastoPorCategoriaId[categoria.id] ?: 0L,
                 limiteCentavos = orcamentos[categoria.id],
-                aoTocar = { editando = categoria }
+                aoTocar = { editando = categoria },
+                aoArquivar = { aoArquivar(categoria.id, true) }
             )
         }
+
+        if (arquivadas.isNotEmpty()) {
+            Spacer(modifier = Modifier.height(20.dp))
+            HorizontalDivider()
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { mostrandoArquivadas = !mostrandoArquivadas }
+                    .padding(vertical = 14.dp)
+            ) {
+                Text(
+                    text = "ARQUIVADAS (${arquivadas.size})",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.weight(1f)
+                )
+                Icon(
+                    imageVector = if (mostrandoArquivadas) {
+                        Icons.Filled.KeyboardArrowUp
+                    } else {
+                        Icons.Filled.KeyboardArrowDown
+                    },
+                    contentDescription = if (mostrandoArquivadas) "Recolher" else "Expandir",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            if (mostrandoArquivadas) {
+                arquivadas.forEach { categoria ->
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(12.dp)
+                                .background(color = categoria.cor(), shape = CircleShape)
+                        )
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Text(
+                            text = categoria.rotulo,
+                            fontSize = 15.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.weight(1f)
+                        )
+                        TextButton(onClick = { aoArquivar(categoria.id, false) }) {
+                            Text(text = "Restaurar", fontSize = 14.sp)
+                        }
+                    }
+                }
+            }
+        }
+
         Spacer(modifier = Modifier.height(80.dp)) // respiro para o botão Lançar
     }
 
@@ -93,14 +173,17 @@ private fun LinhaOrcamento(
     categoria: Categoria,
     gastoCentavos: Long,
     limiteCentavos: Long?,
-    aoTocar: () -> Unit
+    aoTocar: () -> Unit,
+    aoArquivar: () -> Unit
 ) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = aoTocar)
-            .padding(vertical = 10.dp)
+            .padding(vertical = 4.dp)
     ) {
+        // O nome fica sozinho na primeira linha: sobra espaço para o
+        // botão de arquivar sem espremer nada.
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(
                 modifier = Modifier
@@ -108,30 +191,31 @@ private fun LinhaOrcamento(
                     .background(color = categoria.cor(), shape = CircleShape)
             )
             Spacer(modifier = Modifier.width(10.dp))
-            Text(text = categoria.rotulo, fontSize = 16.sp, modifier = Modifier.weight(1f))
-            if (limiteCentavos == null) {
-                Text(
-                    text = "Definir limite",
-                    fontSize = 14.sp,
-                    color = MaterialTheme.colorScheme.primary
-                )
-            } else {
-                Text(
-                    text = "${formatarCentavos(gastoCentavos)} de ${formatarCentavos(limiteCentavos)}",
-                    fontSize = 14.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+            Text(
+                text = categoria.rotulo,
+                fontSize = 16.sp,
+                maxLines = 1,
+                modifier = Modifier.weight(1f)
+            )
+            TextButton(onClick = aoArquivar) {
+                Text(text = "Arquivar", fontSize = 14.sp)
             }
         }
 
-        if (limiteCentavos != null) {
+        if (limiteCentavos == null) {
+            Text(
+                text = "Definir limite",
+                fontSize = 14.sp,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(bottom = 6.dp)
+            )
+        } else {
             val fracao = gastoCentavos.toFloat() / limiteCentavos
             val corBarra = when {
                 fracao > 1f -> VermelhoGasto
                 fracao >= 0.8f -> CorAlerta
                 else -> VerdeGanho
             }
-            Spacer(modifier = Modifier.height(6.dp))
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -148,8 +232,13 @@ private fun LinhaOrcamento(
                         .background(color = corBarra, shape = RoundedCornerShape(5.dp))
                 )
             }
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = "${formatarCentavos(gastoCentavos)} de ${formatarCentavos(limiteCentavos)}",
+                fontSize = 14.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
             if (fracao > 1f) {
-                Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = "Passou ${formatarCentavos(gastoCentavos - limiteCentavos)} do limite",
                     fontSize = 13.sp,
@@ -157,6 +246,7 @@ private fun LinhaOrcamento(
                     fontWeight = FontWeight.Medium
                 )
             }
+            Spacer(modifier = Modifier.height(6.dp))
         }
     }
 }

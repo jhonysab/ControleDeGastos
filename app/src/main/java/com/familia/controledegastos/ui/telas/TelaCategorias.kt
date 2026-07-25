@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
@@ -36,26 +37,32 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.familia.controledegastos.model.Categoria
 import com.familia.controledegastos.model.CategoriasPadrao
 import com.familia.controledegastos.model.TipoCategoria
+import com.familia.controledegastos.model.primeiraMaiuscula
+import com.familia.controledegastos.ui.theme.VermelhoGasto
 import com.familia.controledegastos.ui.theme.corDoHex
 
 // Gerenciar as categorias da família: criar, renomear, mudar cor/tipo,
-// arquivar (some das opções, mas o histórico continua mostrando o nome).
+// arquivar (some das opções, mas o histórico continua mostrando o nome)
+// e excluir de vez as que foram criadas por engano.
 @Composable
 fun TelaCategorias(
     categorias: List<Categoria>,
     aoSalvar: (Categoria) -> Unit,
     aoArquivar: (String, Boolean) -> Unit,
+    aoExcluir: (String) -> Unit,
+    usosDaCategoria: (String) -> Int,
     aoVoltar: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     var editando by remember { mutableStateOf<Categoria?>(null) }
+    var paraExcluir by remember { mutableStateOf<Categoria?>(null) }
 
     BackHandler(onBack = aoVoltar)
 
@@ -113,11 +120,19 @@ fun TelaCategorias(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(vertical = 8.dp)
+                        .padding(vertical = 4.dp)
                 ) {
-                    Text(text = categoria.nome, fontSize = 16.sp, modifier = Modifier.weight(1f))
+                    Text(
+                        text = categoria.nome,
+                        fontSize = 16.sp,
+                        maxLines = 1,
+                        modifier = Modifier.weight(1f)
+                    )
                     TextButton(onClick = { aoArquivar(categoria.id, false) }) {
-                        Text("Reativar")
+                        Text(text = "Reativar", fontSize = 14.sp)
+                    }
+                    TextButton(onClick = { paraExcluir = categoria }) {
+                        Text(text = "Excluir", fontSize = 14.sp, color = VermelhoGasto)
                     }
                 }
             }
@@ -138,7 +153,54 @@ fun TelaCategorias(
                 aoSalvar(it)
                 editando = null
             },
+            // Categoria nova ainda não existe para ser apagada
+            aoPedirExclusao = if (categoria.id.isBlank()) null else {
+                {
+                    editando = null
+                    paraExcluir = categoria
+                }
+            },
             aoFechar = { editando = null }
+        )
+    }
+
+    paraExcluir?.let { categoria ->
+        // Apagar uma categoria em uso deixaria os lançamentos antigos
+        // apontando para o nada — nesse caso só oferecemos arquivar.
+        val usos = usosDaCategoria(categoria.id)
+        val emUso = usos > 0
+        AlertDialog(
+            onDismissRequest = { paraExcluir = null },
+            title = { Text(if (emUso) "Essa não dá para excluir" else "Excluir categoria?") },
+            text = {
+                Text(
+                    text = if (emUso) {
+                        "\"${categoria.nome}\" já está em $usos lançamento" +
+                            (if (usos > 1) "s" else "") + ". Se apagasse, eles ficariam " +
+                            "sem categoria. Arquivar some das opções e preserva o histórico."
+                    } else {
+                        "\"${categoria.nome}\" será apagada de vez. Como ela não tem " +
+                            "nenhum lançamento, nada do histórico se perde."
+                    },
+                    fontSize = 16.sp
+                )
+            },
+            confirmButton = {
+                if (emUso) {
+                    TextButton(onClick = {
+                        aoArquivar(categoria.id, true)
+                        paraExcluir = null
+                    }) { Text("Arquivar em vez disso") }
+                } else {
+                    TextButton(onClick = {
+                        aoExcluir(categoria.id)
+                        paraExcluir = null
+                    }) { Text("Excluir", color = VermelhoGasto) }
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { paraExcluir = null }) { Text("Cancelar") }
+            }
         )
     }
 }
@@ -183,6 +245,7 @@ private fun LinhaCategoria(
 private fun DialogoCategoria(
     categoria: Categoria,
     aoSalvar: (Categoria) -> Unit,
+    aoPedirExclusao: (() -> Unit)?,
     aoFechar: () -> Unit
 ) {
     var nome by remember(categoria) { mutableStateOf(categoria.nome) }
@@ -201,6 +264,9 @@ private fun DialogoCategoria(
                     onValueChange = { nome = it },
                     label = { Text("Nome") },
                     singleLine = true,
+                    keyboardOptions = KeyboardOptions(
+                        capitalization = KeyboardCapitalization.Words
+                    ),
                     modifier = Modifier.fillMaxWidth()
                 )
                 Spacer(modifier = Modifier.height(16.dp))
@@ -241,12 +307,24 @@ private fun DialogoCategoria(
                         }
                     }
                 }
+                aoPedirExclusao?.let { pedirExclusao ->
+                    Spacer(modifier = Modifier.height(8.dp))
+                    TextButton(onClick = pedirExclusao) {
+                        Text(text = "Excluir categoria", color = VermelhoGasto)
+                    }
+                }
             }
         },
         confirmButton = {
             TextButton(
                 onClick = {
-                    aoSalvar(categoria.copy(nome = nome.trim(), corHex = corHex, tipo = tipo))
+                    aoSalvar(
+                        categoria.copy(
+                            nome = nome.primeiraMaiuscula(),
+                            corHex = corHex,
+                            tipo = tipo
+                        )
+                    )
                 },
                 enabled = nome.isNotBlank()
             ) { Text("Salvar") }

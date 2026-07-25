@@ -19,6 +19,7 @@ import com.familia.controledegastos.model.Recorrencia
 import com.familia.controledegastos.model.Usuario
 import com.familia.controledegastos.model.TipoTransacao
 import com.familia.controledegastos.model.Transacao
+import com.familia.controledegastos.model.primeiraMaiuscula
 import com.google.firebase.Timestamp
 import java.time.LocalDate
 import java.time.YearMonth
@@ -34,6 +35,35 @@ data class ResumoMensal(
     val ganhosCentavos: Long,
     val gastosCentavos: Long
 )
+
+// Um dia da lista do Resumo: o cabeçalho com a data e o que
+// aconteceu nele.
+data class DiaDeLancamentos(
+    val dia: LocalDate,
+    val itens: List<Transacao>,
+    // ganhos menos gastos DAQUELE dia (negativo = dia de gasto)
+    val saldoCentavos: Long
+)
+
+// Quebra a lista do Resumo em dias. groupBy preserva a ordem em que os
+// itens aparecem, então os dias saem na mesma ordem da lista que entrou
+// (mais recentes primeiro, ou mais antigos).
+// Fora da classe e sem Firebase: dá para testar direto.
+fun agruparPorDia(
+    transacoes: List<Transacao>,
+    zona: ZoneId = ZoneId.systemDefault()
+): List<DiaDeLancamentos> =
+    transacoes
+        .groupBy { it.data.toDate().toInstant().atZone(zona).toLocalDate() }
+        .map { (dia, itens) ->
+            DiaDeLancamentos(
+                dia = dia,
+                itens = itens,
+                saldoCentavos = itens.sumOf {
+                    if (it.tipo == TipoTransacao.GANHO) it.valorCentavos else -it.valorCentavos
+                }
+            )
+        }
 
 enum class OrdenacaoLista(val rotulo: String) {
     RECENTE("Mais recentes"),
@@ -185,6 +215,36 @@ class TransacoesViewModel(
         }
     }
 
+    // Tira (ou devolve) a categoria da aba Limites, sem mexer nos
+    // lançamentos — nem toda categoria precisa de um teto de gasto.
+    fun ocultarCategoriaNosLimites(categoriaId: String, oculta: Boolean) {
+        viewModelScope.launch {
+            try {
+                categoriaRepo.ocultarNosLimites(familiaId, categoriaId, oculta)
+            } catch (e: Exception) {
+                erro = "Não foi possível arquivar a categoria: ${e.message}"
+            }
+        }
+    }
+
+    // Quantos lançamentos e contas ainda apontam para essa categoria.
+    // Zero = dá para apagar de vez sem deixar histórico órfão.
+    fun usosDaCategoria(categoriaId: String): Int =
+        transacoes.count { it.categoria == categoriaId } +
+            recorrencias.count { it.categoria == categoriaId }
+
+    fun removerCategoria(categoriaId: String) {
+        viewModelScope.launch {
+            try {
+                categoriaRepo.remover(familiaId, categoriaId)
+                // limite de uma categoria que não existe mais não serve para nada
+                runCatching { orcamentoRepo.remover(familiaId, categoriaId) }
+            } catch (e: Exception) {
+                erro = "Não foi possível excluir a categoria: ${e.message}"
+            }
+        }
+    }
+
     fun salvarCartao(cartao: Cartao) {
         viewModelScope.launch {
             try {
@@ -252,6 +312,20 @@ class TransacoesViewModel(
                 }
             }
 
+    // Algum filtro da lista está ligado? (o filtro por pessoa não conta:
+    // ele já muda o mês inteiro, inclusive Gráficos e Limites)
+    val filtrosAtivos: Boolean
+        get() = filtroCategoriaId != null || filtroTipoLista != null ||
+            filtroForma != null || filtroCartaoId != null || busca.isNotBlank()
+
+    // Separar por dia só faz sentido com a lista em ordem de data —
+    // ordenando por valor os dias ficariam embaralhados.
+    val separarPorDia: Boolean
+        get() = ordenacaoLista == OrdenacaoLista.RECENTE || ordenacaoLista == OrdenacaoLista.ANTIGO
+
+    val exibidasPorDia: List<DiaDeLancamentos>
+        get() = agruparPorDia(transacoesExibidas)
+
     // Categorias que realmente aparecem no mês (para o filtro não listar vazio)
     val categoriasDoMes: List<Categoria>
         get() = transacoesDoMes.map { it.categoria }.distinct()
@@ -314,11 +388,14 @@ class TransacoesViewModel(
                 (filtroUid == null || it.criadoPor == filtroUid)
         }
 
+    // Os totais do card seguem os MESMOS filtros da lista logo abaixo
+    // dele. Sem isso a pessoa filtrava "só gastos no crédito" e o card
+    // continuava mostrando o mês inteiro — parecia que a conta não fechava.
     val totalGanhosCentavos: Long
-        get() = transacoesDoMes.filter { it.tipo == TipoTransacao.GANHO }.sumOf { it.valorCentavos }
+        get() = transacoesExibidas.filter { it.tipo == TipoTransacao.GANHO }.sumOf { it.valorCentavos }
 
     val totalGastosCentavos: Long
-        get() = transacoesDoMes.filter { it.tipo == TipoTransacao.GASTO }.sumOf { it.valorCentavos }
+        get() = transacoesExibidas.filter { it.tipo == TipoTransacao.GASTO }.sumOf { it.valorCentavos }
 
     val saldoCentavos: Long
         get() = totalGanhosCentavos - totalGastosCentavos
@@ -365,14 +442,20 @@ class TransacoesViewModel(
                 if (n == 1) {
                     repo.adicionar(
                         familiaId,
-                        montarTransacao(dados, dados.valorCentavos, dados.descricao.trim(), dados.dia)
+                        montarTransacao(
+                            dados,
+                            dados.valorCentavos,
+                            dados.descricao.primeiraMaiuscula(),
+                            dados.dia
+                        )
                     )
                 } else {
                     // o valor digitado é o TOTAL da compra; divide em N
                     // parcelas e a primeira absorve a sobra dos centavos
                     val parcela = dados.valorCentavos / n
                     val primeira = dados.valorCentavos - parcela * (n - 1)
-                    val descBase = dados.descricao.trim().ifBlank { dados.categoria.rotulo }
+                    val descBase = dados.descricao.primeiraMaiuscula()
+                        .ifBlank { dados.categoria.rotulo }
                     repeat(n) { i ->
                         repo.adicionar(
                             familiaId,
@@ -449,7 +532,7 @@ class TransacoesViewModel(
                         tipo = dados.tipo,
                         valorCentavos = dados.valorCentavos,
                         categoria = dados.categoria.id,
-                        descricao = dados.descricao.trim(),
+                        descricao = dados.descricao.primeiraMaiuscula(),
                         data = Timestamp(
                             Date.from(dados.dia.atTime(12, 0).atZone(ZoneId.systemDefault()).toInstant())
                         ),

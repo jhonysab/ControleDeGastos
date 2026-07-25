@@ -18,6 +18,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.text.BasicText
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
@@ -43,6 +46,8 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LocalContentColor
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.ModalNavigationDrawer
@@ -67,6 +72,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -91,6 +97,7 @@ import java.time.ZoneId
 import java.time.YearMonth
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import kotlin.math.abs
 import kotlinx.coroutines.launch
 
 @Composable
@@ -201,6 +208,8 @@ fun TelaPrincipal(
             categorias = vm.categorias,
             aoSalvar = vm::salvarCategoria,
             aoArquivar = vm::arquivarCategoria,
+            aoExcluir = vm::removerCategoria,
+            usosDaCategoria = vm::usosDaCategoria,
             aoVoltar = { telaCategorias = false },
             modifier = modifier
         )
@@ -356,27 +365,27 @@ fun TelaPrincipal(
                 }
             }
 
+            // A aba encolhe a fonte até caber em vez de quebrar a palavra:
+            // em celular com fonte grande, "Gráficos" pulava as últimas
+            // letras para a linha de baixo.
             TabRow(selectedTabIndex = abaSelecionada) {
-                Tab(
-                    selected = abaSelecionada == 0,
-                    onClick = { abaSelecionada = 0 },
-                    text = { Text(text = "Resumo", fontSize = 16.sp) }
-                )
-                Tab(
-                    selected = abaSelecionada == 1,
-                    onClick = { abaSelecionada = 1 },
-                    text = { Text(text = "Gráficos", fontSize = 16.sp) }
-                )
-                Tab(
-                    selected = abaSelecionada == 2,
-                    onClick = { abaSelecionada = 2 },
-                    text = { Text(text = "Limites", fontSize = 16.sp) }
-                )
-                Tab(
-                    selected = abaSelecionada == 3,
-                    onClick = { abaSelecionada = 3 },
-                    text = { Text(text = "Contas", fontSize = 16.sp) }
-                )
+                ABAS.forEachIndexed { indice, titulo ->
+                    Tab(
+                        selected = abaSelecionada == indice,
+                        onClick = { abaSelecionada = indice },
+                        text = {
+                            BasicText(
+                                text = titulo,
+                                style = LocalTextStyle.current.copy(color = LocalContentColor.current),
+                                maxLines = 1,
+                                autoSize = TextAutoSize.StepBased(
+                                    minFontSize = 11.sp,
+                                    maxFontSize = 16.sp
+                                )
+                            )
+                        }
+                    )
+                }
             }
 
             // Filtro por pessoa (some na aba Contas: o status lá é da família)
@@ -421,7 +430,8 @@ fun TelaPrincipal(
                     categorias = vm.categoriasParaGasto,
                     gastoPorCategoriaId = vm.gastosPorCategoria.associate { it.first.id to it.second },
                     orcamentos = vm.orcamentos,
-                    aoDefinir = vm::definirOrcamento
+                    aoDefinir = vm::definirOrcamento,
+                    aoArquivar = vm::ocultarCategoriaNosLimites
                 )
             } else if (abaSelecionada == 3) {
                 AbaContas(
@@ -488,25 +498,39 @@ fun TelaPrincipal(
                                 )
                             }
                         }
+                    } else if (vm.separarPorDia) {
+                        // Um cabeçalho por dia, com o que entrou/saiu
+                        // naquele dia — fica bem mais fácil de ler do
+                        // que uma lista corrida do mês inteiro.
+                        vm.exibidasPorDia.forEach { grupo ->
+                            item(key = "dia-${grupo.dia}") {
+                                CabecalhoDoDia(
+                                    dia = grupo.dia,
+                                    saldoCentavos = grupo.saldoCentavos
+                                )
+                            }
+                            items(grupo.itens, key = { it.id }) { transacao ->
+                                LinhaDaLista(
+                                    vm = vm,
+                                    transacao = transacao,
+                                    nomes = nomes,
+                                    nomesCartoes = nomesCartoes,
+                                    aoTocar = { transacaoParaEditar = transacao },
+                                    aoSegurar = { transacaoParaExcluir = transacao }
+                                )
+                            }
+                        }
                     } else {
+                        // Ordenado por valor: agrupar por dia embaralharia tudo.
                         items(exibidas, key = { it.id }) { transacao ->
-                            ItemTransacao(
+                            LinhaDaLista(
+                                vm = vm,
                                 transacao = transacao,
-                                categoria = vm.resolverCategoria(transacao.categoria),
-                                // só faz sentido dizer quem lançou vendo "Todos"
-                                criadorNome = if (vm.membros.size > 1 && vm.filtroUid == null) {
-                                    nomes[transacao.criadoPor]
-                                } else null,
-                                formaTexto = if (transacao.formaPagamento == FormaPagamento.CREDITO) {
-                                    listOfNotNull("Crédito", nomesCartoes[transacao.cartaoId])
-                                        .joinToString(" ")
-                                } else {
-                                    transacao.formaPagamento.rotulo
-                                },
+                                nomes = nomes,
+                                nomesCartoes = nomesCartoes,
                                 aoTocar = { transacaoParaEditar = transacao },
                                 aoSegurar = { transacaoParaExcluir = transacao }
                             )
-                            HorizontalDivider(thickness = 0.5.dp)
                         }
                     }
                 }
@@ -538,6 +562,9 @@ fun TelaPrincipal(
                     onValueChange = { nome = it },
                     label = { Text("Seu nome") },
                     singleLine = true,
+                    keyboardOptions = KeyboardOptions(
+                        capitalization = KeyboardCapitalization.Words
+                    ),
                     modifier = Modifier.fillMaxWidth()
                 )
             },
@@ -722,6 +749,64 @@ private fun MenuSuspenso(
     }
 }
 
+// Uma linha da lista do Resumo (com o traço separador embaixo).
+// Existe para os dois modos — agrupado por dia e lista corrida —
+// usarem exatamente o mesmo item.
+@Composable
+private fun LinhaDaLista(
+    vm: TransacoesViewModel,
+    transacao: Transacao,
+    nomes: Map<String, String>,
+    nomesCartoes: Map<String, String>,
+    aoTocar: () -> Unit,
+    aoSegurar: () -> Unit
+) {
+    ItemTransacao(
+        transacao = transacao,
+        categoria = vm.resolverCategoria(transacao.categoria),
+        // só faz sentido dizer quem lançou vendo "Todos"
+        criadorNome = if (vm.membros.size > 1 && vm.filtroUid == null) {
+            nomes[transacao.criadoPor]
+        } else null,
+        formaTexto = if (transacao.formaPagamento == FormaPagamento.CREDITO) {
+            listOfNotNull("Crédito", nomesCartoes[transacao.cartaoId]).joinToString(" ")
+        } else {
+            transacao.formaPagamento.rotulo
+        },
+        aoTocar = aoTocar,
+        aoSegurar = aoSegurar
+    )
+    HorizontalDivider(thickness = 0.5.dp)
+}
+
+// Faixa que separa um dia do outro na lista.
+@Composable
+private fun CabecalhoDoDia(dia: LocalDate, saldoCentavos: Long) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.surfaceContainerHighest)
+            .padding(horizontal = 16.dp, vertical = 6.dp)
+    ) {
+        Text(
+            text = rotuloDoDia(dia),
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Medium,
+            maxLines = 1,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.weight(1f)
+        )
+        Text(
+            text = (if (saldoCentavos < 0) "− " else "+ ") + formatarCentavos(abs(saldoCentavos)),
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Medium,
+            maxLines = 1,
+            color = if (saldoCentavos < 0) VermelhoGasto else VerdeGanho
+        )
+    }
+}
+
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun ItemTransacao(
@@ -785,8 +870,10 @@ private fun CartaoResumo(vm: TransacoesViewModel) {
                 .padding(16.dp)
         ) {
             // Saldo em destaque: é o número que os pais mais olham.
+            // Com filtro ligado o card fala do filtro, não do mês —
+            // e o rótulo avisa isso para ninguém se perder.
             Text(
-                text = "Saldo do mês",
+                text = if (vm.filtrosAtivos) "Saldo do que está filtrado" else "Saldo do mês",
                 fontSize = 14.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -797,6 +884,13 @@ private fun CartaoResumo(vm: TransacoesViewModel) {
                 maxLines = 1,
                 color = if (vm.saldoCentavos >= 0) VerdeGanho else VermelhoGasto
             )
+            if (vm.filtrosAtivos) {
+                Text(
+                    text = "${vm.transacoesExibidas.size} de ${vm.transacoesDoMes.size} lançamentos do mês",
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
             Spacer(modifier = Modifier.height(12.dp))
             HorizontalDivider(modifier = Modifier.fillMaxWidth())
             Spacer(modifier = Modifier.height(12.dp))
@@ -837,10 +931,28 @@ private fun ResumoColuna(
     }
 }
 
+private val ABAS = listOf("Resumo", "Gráficos", "Limites", "Contas")
+
 private fun nomeDoMes(mes: YearMonth): String {
     val ptBr = Locale.forLanguageTag("pt-BR")
     val texto = mes.format(DateTimeFormatter.ofPattern("MMMM 'de' yyyy", ptBr))
     return texto.replaceFirstChar { it.titlecase(ptBr) }
+}
+
+// "Hoje, 24/07" / "Ontem, 23/07" / "Segunda-feira, 21/07"
+private fun rotuloDoDia(dia: LocalDate): String {
+    val ptBr = Locale.forLanguageTag("pt-BR")
+    val curta = dia.format(DateTimeFormatter.ofPattern("dd/MM", ptBr))
+    val hoje = LocalDate.now()
+    return when (dia) {
+        hoje -> "Hoje, $curta"
+        hoje.minusDays(1) -> "Ontem, $curta"
+        else -> {
+            val semana = dia.format(DateTimeFormatter.ofPattern("EEEE", ptBr))
+                .replaceFirstChar { it.titlecase(ptBr) }
+            "$semana, $curta"
+        }
+    }
 }
 
 private fun dataCurta(transacao: Transacao): String =

@@ -7,6 +7,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.familia.controledegastos.data.AuthRepository
 import com.familia.controledegastos.model.Usuario
+import com.familia.controledegastos.model.primeiraMaiuscula
 import com.google.firebase.FirebaseNetworkException
 import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException
 import com.google.firebase.auth.FirebaseAuthInvalidUserException
@@ -84,7 +85,9 @@ class AuthViewModel(
             return
         }
         executar {
-            estado = EstadoAuth.SemFamilia(repo.cadastrar(nome.trim(), email.trim(), senha))
+            estado = EstadoAuth.SemFamilia(
+                repo.cadastrar(nome.primeiraMaiuscula(), email.trim(), senha)
+            )
         }
     }
 
@@ -95,7 +98,7 @@ class AuthViewModel(
             return
         }
         executar {
-            val id = repo.criarFamilia(nomeFamilia.trim(), usuario.id)
+            val id = repo.criarFamilia(nomeFamilia.primeiraMaiuscula(), usuario.id)
             estado = EstadoAuth.Pronto(usuario.copy(familiaId = id))
         }
     }
@@ -119,8 +122,9 @@ class AuthViewModel(
             return
         }
         executar {
-            repo.atualizarNome(usuario.id, novoNome.trim())
-            estado = EstadoAuth.Pronto(usuario.copy(nome = novoNome.trim()))
+            val nome = novoNome.primeiraMaiuscula()
+            repo.atualizarNome(usuario.id, nome)
+            estado = EstadoAuth.Pronto(usuario.copy(nome = nome))
         }
     }
 

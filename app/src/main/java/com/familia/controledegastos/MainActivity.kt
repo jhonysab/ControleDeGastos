@@ -27,6 +27,7 @@ import androidx.work.WorkManager
 import com.familia.controledegastos.notificacoes.LembreteVencimentoWorker
 import com.familia.controledegastos.ui.AuthViewModel
 import com.familia.controledegastos.ui.EstadoAuth
+import com.familia.controledegastos.ui.fecharTecladoAoTocar
 import com.familia.controledegastos.ui.telas.TelaCadastro
 import com.familia.controledegastos.ui.telas.TelaFamilia
 import com.familia.controledegastos.ui.telas.TelaLogin
@@ -42,7 +43,12 @@ class MainActivity : ComponentActivity() {
         pedirPermissaoDeNotificacao()
         setContent {
             ControleDeGastosTheme {
-                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
+                // Vale para o app inteiro: tocar fora de um campo fecha o teclado.
+                Scaffold(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .fecharTecladoAoTocar()
+                ) { innerPadding ->
                     App(modifier = Modifier.padding(innerPadding))
                 }
             }
