@@ -8,7 +8,7 @@
 [![Jetpack Compose](https://img.shields.io/badge/UI-Jetpack%20Compose-4285F4?logo=jetpackcompose&logoColor=white)](https://developer.android.com/jetpack/compose)
 [![Firebase](https://img.shields.io/badge/Backend-Firebase-FFCA28?logo=firebase&logoColor=black)](https://firebase.google.com/)
 [![Material 3](https://img.shields.io/badge/Design-Material%203-757575?logo=materialdesign&logoColor=white)](https://m3.material.io/)
-[![Android](https://img.shields.io/badge/Android-8.0%2B%20(API%2026)-3DDC84?logo=android&logoColor=white)](#-requisitos)
+[![Android](https://img.shields.io/badge/Android-8.0%2B%20(API%2026)-3DDC84?logo=android&logoColor=white)](#-como-compilar)
 
 </div>
 
@@ -46,7 +46,7 @@ A ideia central é o **cofre compartilhado da família**: cada pessoa instala o 
 
 - **Linguagem:** Kotlin (100%)
 - **UI:** Jetpack Compose + **Material 3** (interface declarativa e moderna)
-- **Arquitetura:** MVVM (Model – View – ViewModel) com `StateFlow`
+- **Arquitetura:** MVVM (Model – View – ViewModel) — o estado das telas vive em `mutableStateOf` do Compose e os dados do Firestore chegam como `Flow`
 - **Autenticação:** Firebase Authentication (e-mail e senha)
 - **Banco de dados:** Cloud Firestore (NoSQL, **sincronização em tempo real** entre os celulares)
 - **Tarefas em segundo plano:** WorkManager (lembretes de vencimento)
@@ -78,6 +78,16 @@ app/src/main/java/com/familia/controledegastos/
 ```
 
 A segurança dos dados é garantida pelas **regras do Firestore** (`firestore.rules`): cada pessoa só acessa o próprio perfil e o cofre da família da qual é membro — **todo o resto é negado no servidor**, não só na tela.
+
+### ✅ Testes
+
+- **Unitários (JVM):** lógica pura — por exemplo, o agrupamento dos lançamentos por dia.
+- **Instrumentados (Compose UI):** telas exercitadas com dados de mentira, sem precisar de login nem de internet — o agrupamento das contas, arquivar e restaurar limites, a trava que impede excluir uma categoria em uso e os nomes das abas com a fonte do sistema ampliada.
+
+```bash
+./gradlew testDebugUnitTest          # unitários
+./gradlew connectedDebugAndroidTest  # instrumentados (precisa de emulador ou aparelho)
+```
 
 ---
 
@@ -115,7 +125,7 @@ Depois:
 
 ## 📌 Situação atual
 
-App funcional (versão `1.0.1`), usado pela família. Evoluiu a partir do uso real: categorias personalizadas, filtros no resumo, exportação e otimização do build de release surgiram de necessidades que apareceram na prática.
+App funcional (versão `1.1.0`), instalado e em uso pela família. Evoluiu a partir do uso real: categorias personalizadas, filtros no resumo, exportação e otimização do build de release surgiram de necessidades que apareceram na prática. A última rodada nasceu de uma semana de teste dos meus pais com o app na mão: lista separada por dia, contas divididas entre o que sai e o que entra, e ajustes para quem usa o celular com fonte grande.
 
 ## 📄 Licença
 
